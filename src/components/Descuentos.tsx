@@ -5,6 +5,7 @@ import type { Datos, Descuento, EstadoDescuento } from '../lib/registro.ts';
 import { estadoDescuento, etiquetaDescuento, hoy } from '../lib/registro.ts';
 import { fecha, norm, parseNum } from '../lib/format.ts';
 import { ModalFormulario } from './ModalFormulario.tsx';
+import { Selector } from './Selector.tsx';
 import { btn, campo, empty, etiqueta, filtro, filtros, h2, icon, input, lista, listaFila, muted, panel, panelHead } from './ui.ts';
 
 const CAPACIDAD = 200;
@@ -133,9 +134,6 @@ function Formulario({ datos, e, set, onAceptar, onCancelar }: { datos: Datos; e:
 
   return (
     <ModalFormulario titulo={`${e.i < 0 ? 'Nuevo' : 'Editar'} descuento`} onAceptar={onAceptar} onCancelar={onCancelar}>
-      <datalist id="dl-dto-productos">{datos.productos.map(p => <option key={p.nombre} value={p.nombre} />)}</datalist>
-      <datalist id="dl-dto-clientes">{datos.clientes.map(c => <option key={c.nombre} value={c.nombre} />)}</datalist>
-
       {/* dos columnas también en móvil; los campos de texto largos ocupan las dos */}
       <div class="grid grid-cols-2 gap-x-4 gap-y-3.5 movil:gap-x-2.5">
         <label class={`${campo} col-span-2`}>
@@ -144,7 +142,7 @@ function Formulario({ datos, e, set, onAceptar, onCancelar }: { datos: Datos; e:
         </label>
         <label class={`${campo} col-span-2`}>
           <span class={etiqueta}>Producto</span>
-          <input class={input} list="dl-dto-productos" value={x.producto} placeholder="Todos los productos" onInput={ev => cambia({ producto: ev.currentTarget.value })} />
+          <Selector valor={x.producto} opciones={datos.productos.map(p => p.nombre)} vacio="Todos los productos" onChange={producto => cambia({ producto })} />
           {!hayProducto && <small class={aviso}>No está en Productos: no se aplicará a nada.</small>}
         </label>
 
@@ -183,7 +181,7 @@ function Formulario({ datos, e, set, onAceptar, onCancelar }: { datos: Datos; e:
 
         <label class={`${campo} col-span-2`}>
           <span class={etiqueta}>Solo para el cliente</span>
-          <input class={input} list="dl-dto-clientes" value={x.cliente} placeholder="Cualquier cliente" onInput={ev => cambia({ cliente: ev.currentTarget.value })} />
+          <Selector valor={x.cliente} opciones={datos.clientes.map(c => c.nombre)} vacio="Cualquier cliente" onChange={cliente => cambia({ cliente })} />
           {!hayCliente && <small class={aviso}>No está en Clientes: no se aplicará a nadie.</small>}
         </label>
 

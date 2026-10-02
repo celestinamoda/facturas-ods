@@ -35,6 +35,7 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 | `src/components/Ventas.tsx` | Listado con filtros y KPIs |
 | `src/components/Fichas.tsx` | Listado genérico con edición en modal (Clientes y Productos) |
 | `src/components/ModalFormulario.tsx` | Modal de formulario común a Fichas y Descuentos |
+| `src/components/Selector.tsx` | Desplegable de textos (clientes, productos, formas de pago) |
 | `src/components/Descuentos.tsx` | Página de descuentos: listado con estado y resumen, y edición en modal |
 | `src/components/TiendaForm.tsx` | Datos de la tienda (hoja Tienda) |
 | `src/components/Factura.tsx` | Factura que se ve en el modal y se imprime a PDF |
@@ -103,6 +104,11 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   sobre una copia: «Aceptar» aplica, «Cancelar» o Escape descartan, y no se cierra al pulsar fuera.
   En clientes y productos el nombre es obligatorio. «Aceptar» no guarda el archivo: eso sigue siendo
   «Guardar».
+- **Cliente, producto y forma de pago se eligen en desplegables** (`Selector.tsx`), no con
+  autocompletar: lo pidió el usuario. Consecuencia: en una venta solo se pueden poner productos y
+  clientes que ya estén dados de alta. Si un valor guardado ya no está en la lista (producto borrado,
+  forma de pago escrita a mano en la hoja), el desplegable lo añade como opción para no perderlo.
+  Al cambiar de producto en una línea se pone siempre su precio de catálogo.
 - **El nombre de un descuento no sale en la factura** (decisión del usuario): solo «Descuento −10 % ·
   antes 45,00 €». El nombre sí se guarda en la columna DESCUENTO de Detalle ventas, dentro de la
   etiqueta «Nombre (−10 %)»; `rebajaDeEtiqueta` saca la parte que se imprime.
@@ -177,6 +183,8 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
 - Clientes, Productos y Descuentos pasan a listado con edición en modal (recorridos probados en
   navegador headless: editar, cancelar, añadir, eliminar, que el precio nuevo llega a Nueva venta, y
   que el descuento se aplica y la factura no enseña su nombre).
+- Autocompletar sustituido por desplegables en Nueva venta y en el modal de descuentos (probado en
+  navegador headless).
 - Factura impresa igual en móvil y escritorio: el usuario la imprimió desde el móvil y salía distinta.
   Comprobado imprimiendo a PDF en navegador headless con emulación de móvil y de escritorio: mismo
   PDF, una página A4, con las bandas negras aunque los fondos estén desactivados. **Sin confirmar en

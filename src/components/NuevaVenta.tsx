@@ -3,6 +3,7 @@ import { useMemo, useState } from 'preact/hooks';
 import type { Datos, Linea, Venta } from '../lib/registro.ts';
 import { hoy, mejorDescuento, numeroFactura, round2, sumarDias, totales } from '../lib/registro.ts';
 import { eur, norm, parseNum } from '../lib/format.ts';
+import { Selector } from './Selector.tsx';
 import { btn, campo, error as errorCls, etiqueta, filaMovil, gridForm, h2, icon, input, muted, panel, panelHead, span2, span4, table, tableWrap, tdInput, th, thR } from './ui.ts';
 
 const PAGOS = ['Transferencia', 'Efectivo', 'Tarjeta', 'Bizum', 'Domiciliación'];
@@ -20,11 +21,10 @@ interface LineaForm {
   producto: string;
   cantidad: string;
   precio: string;
-  precioManual: boolean;
   /** el descuento que le tocaría se ha quitado a mano en esta línea */
   sinDto: boolean;
 }
-const vacia = (): LineaForm => ({ producto: '', cantidad: '', precio: '', precioManual: false, sinDto: false });
+const vacia = (): LineaForm => ({ producto: '', cantidad: '', precio: '', sinDto: false });
 
 export interface NuevaVentaResult {
   venta: Venta;
@@ -52,6 +52,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
   const [error, setError] = useState('');
 
   const precios = useMemo(() => new Map(datos.productos.map(p => [norm(p.nombre), p.precio])), [datos.productos]);
+  const productos = useMemo(() => datos.productos.map(p => p.nombre), [datos.productos]);
   const clientes = useMemo(() => new Map(datos.clientes.map(c => [norm(c.nombre), c])), [datos.clientes]);
   const num = numeroFactura(t);
   const duplicado = datos.ventas.some(v => v.num === num);
@@ -78,7 +79,8 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
     setLineas(ls => {
       const next = ls.map((l, j) => (j === i ? { ...l, ...patch } : l));
       const l = next[i];
-      if (patch.producto !== undefined && !l.precioManual) {
+      // al elegir producto se pone su precio de catálogo (luego se puede cambiar a mano)
+      if (patch.producto !== undefined) {
         const p = precios.get(norm(l.producto));
         next[i] = { ...l, precio: p === undefined || p === null ? '' : String(p).replace('.', ',') };
       }
@@ -91,7 +93,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
 
   function construir(): NuevaVentaResult | null {
     const c = clientes.get(norm(cliente));
-    if (!c) return fail('Elige un cliente de la lista. Si es nuevo, añádelo antes en Clientes.');
+    if (!c) return fail('Elige un cliente. Si es nuevo, añádelo antes en Clientes.');
     if (!fecha) return fail('Falta la fecha.');
     const incompleta = calculadas.find(l => l.producto.trim() && (l.importe === null || (l.cantidad ?? 0) <= 0));
     if (incompleta) return fail(`La línea «${incompleta.producto}» necesita cantidad y precio.`);
@@ -132,9 +134,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
       <div class={gridForm}>
         <label class={`${campo} ${span2}`}>
           <span class={etiqueta}>Cliente</span>
-          <input class={input} list="dl-clientes" value={cliente} placeholder="Escribe para buscar…"
-            onInput={e => setCliente(e.currentTarget.value)} />
-          <datalist id="dl-clientes">{datos.clientes.map(c => <option key={c.nombre} value={c.nombre} />)}</datalist>
+          <Selector valor={cliente} opciones={datos.clientes.map(c => c.nombre)} vacio="Elige un cliente…" onChange={setCliente} />
         </label>
         <label class={campo}>
           <span class={etiqueta}>Fecha</span>
@@ -142,8 +142,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
         </label>
         <label class={campo}>
           <span class={etiqueta}>Forma de pago</span>
-          <input class={input} list="dl-pagos" value={pago} onInput={e => setPago(e.currentTarget.value)} />
-          <datalist id="dl-pagos">{PAGOS.map(p => <option key={p} value={p} />)}</datalist>
+          <Selector valor={pago} opciones={PAGOS} onChange={setPago} />
         </label>
         <label class={`${campo} ${span4}`}>
           <span class={etiqueta}>Notas (solo salen en la factura impresa)</span>
@@ -151,7 +150,6 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
         </label>
       </div>
 
-      <datalist id="dl-productos">{datos.productos.map(p => <option key={p.nombre} value={p.nombre} />)}</datalist>
       <div class={tableWrap}>
         <table class={`${table} min-w-140`}>
           <thead>
@@ -165,8 +163,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
               // móvil: producto arriba a todo el ancho; debajo cantidad, precio, importe y quitar
               <tr key={i} class={`${filaMovil} movil:grid-cols-[1fr_1fr_auto_auto] movil:items-center`}>
                 <td class={`${tdInput} movil:col-span-4`}>
-                  <input class={input} list="dl-productos" value={l.producto} placeholder="Producto…"
-                    onInput={e => setLinea(i, { producto: e.currentTarget.value })} />
+                  <Selector valor={l.producto} opciones={productos} vacio="Producto…" onChange={producto => setLinea(i, { producto })} />
                   {l.dto && (
                     <button class={`${chip} ${l.aplicado ? 'bg-primary text-ink' : 'border border-dashed border-line-2 text-muted line-through'}`}
                       title={l.aplicado ? 'Quitar el descuento de esta línea' : 'Volver a aplicar el descuento'}
@@ -178,7 +175,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
                 <td class={tdInput}><input class={`${input} ${numero}`} inputMode="decimal" placeholder="Cant." value={lineas[i].cantidad}
                   onInput={e => setLinea(i, { cantidad: e.currentTarget.value })} /></td>
                 <td class={tdInput}><input class={`${input} ${numero}`} inputMode="decimal" placeholder="Precio" value={lineas[i].precio}
-                  onInput={e => setLinea(i, { precio: e.currentTarget.value, precioManual: e.currentTarget.value !== '' })} /></td>
+                  onInput={e => setLinea(i, { precio: e.currentTarget.value })} /></td>
                 <td class="border-b border-line py-1.25 pr-3 pl-1 text-right align-middle font-semibold whitespace-nowrap tabular-nums movil:min-w-18 movil:border-0 movil:p-0">{l.importe === null ? '' : eur(l.importe)}</td>
                 <td class={tdInput}>{lineas.length > 1 && (
                   <button class={icon} title="Quitar línea" onClick={() => setLineas(ls => ls.filter((_, j) => j !== i))}>×</button>
