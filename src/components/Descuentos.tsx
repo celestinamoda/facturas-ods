@@ -12,6 +12,7 @@ const CAPACIDAD = 200;
 
 const aviso = 'text-[11.5px] font-medium text-danger';
 const numero = `${input} text-right tabular-nums`;
+const TIPOS = [{ valor: '%', texto: 'Porcentaje' }, { valor: '€', texto: 'Euros por unidad' }];
 
 const ESTADO: Record<EstadoDescuento, { texto: string; clase: string }> = {
   activo: { texto: 'Activo', clase: 'bg-primary text-ink' },
@@ -148,10 +149,7 @@ function Formulario({ datos, e, set, onAceptar, onCancelar }: { datos: Datos; e:
 
         <label class={campo}>
           <span class={etiqueta}>Tipo</span>
-          <select class={input} value={x.tipo} onChange={ev => cambia({ tipo: ev.currentTarget.value === '€' ? '€' : '%' })}>
-            <option value="%">Porcentaje</option>
-            <option value="€">Euros por unidad</option>
-          </select>
+          <Selector valor={x.tipo} opciones={TIPOS} onChange={tipo => cambia({ tipo: tipo === '€' ? '€' : '%' })} />
         </label>
         <label class={campo}>
           <span class={etiqueta}>{x.tipo === '%' ? 'Descuento (%)' : 'Descuento (€)'}</span>

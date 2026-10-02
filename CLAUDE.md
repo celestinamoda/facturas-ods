@@ -36,7 +36,7 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 | `src/components/Fichas.tsx` | Listado genérico con edición en modal (ahora solo lo usa Clientes) |
 | `src/components/Productos.tsx` | Listado de productos; el modal incluye sus variedades |
 | `src/components/ModalFormulario.tsx` | Modal de formulario común a Fichas y Descuentos |
-| `src/components/Selector.tsx` | Desplegable de textos (clientes, productos, formas de pago) |
+| `src/components/Selector.tsx` | Desplegable propio (no `<select>`): clientes, productos, variedades, pago, tipo de descuento, mes |
 | `src/components/Descuentos.tsx` | Página de descuentos: listado con estado y resumen, y edición en modal |
 | `src/components/TiendaForm.tsx` | Datos de la tienda (hoja Tienda) |
 | `src/components/Factura.tsx` | Factura que se ve en el modal y se imprime a PDF |
@@ -128,8 +128,18 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
     de Detalle ventas es base − envío. No hay envío por defecto ni envío gratis a partir de un importe.
   - La plantilla de LibreOffice (hojas Nueva venta y Factura, macros) sigue teniendo IRPF y no sabe
     de envíos.
-- **Cliente, producto y forma de pago se eligen en desplegables** (`Selector.tsx`), no con
-  autocompletar: lo pidió el usuario. Consecuencia: en una venta solo se pueden poner productos y
+- **Desplegables propios, no los del sistema** (decisión del usuario): no se usa `<select>` en ningún
+  sitio, siempre `Selector.tsx`. Detalles que hay que respetar si se toca:
+  - La lista va con `position: fixed` calculada desde el botón, para que no la recorten los
+    contenedores con scroll (la tabla de líneas, el cuerpo de los modales); se abre hacia arriba si
+    no cabe abajo y se recoloca si la página se mueve.
+  - Con más de 8 opciones lleva buscador. Teclado: flechas, Intro, Escape y Tab.
+  - Dentro de un modal, Escape cierra solo la lista (se corta la propagación).
+  - Suele ir dentro de un `<label>`: por eso las opciones son botones y la lista hace
+    `preventDefault` en el clic, o el label volvería a activar el botón.
+  - Las fechas siguen con el selector de fecha del navegador (`<input type="date">`).
+- **Cliente, producto y forma de pago se eligen en desplegables**, no con autocompletar: lo pidió
+  el usuario. Consecuencia: en una venta solo se pueden poner productos y
   clientes que ya estén dados de alta. Si un valor guardado ya no está en la lista (producto borrado,
   forma de pago escrita a mano en la hoja), el desplegable lo añade como opción para no perderlo.
   Al cambiar de producto en una línea se pone siempre su precio de catálogo.
@@ -209,6 +219,8 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
   que el descuento se aplica y la factura no enseña su nombre).
 - Variedades de producto con precio por variedad (test de ida y vuelta y recorrido en navegador headless).
 - IRPF quitado de la interfaz y gastos de envío añadidos (test y recorrido en navegador headless).
+- Desplegables del sistema sustituidos por uno propio con buscador (probado en navegador headless con
+  ratón y teclado reales, dentro de modales y en móvil).
 - Autocompletar sustituido por desplegables en Nueva venta y en el modal de descuentos (probado en
   navegador headless).
 - Factura impresa igual en móvil y escritorio: el usuario la imprimió desde el móvil y salía distinta.

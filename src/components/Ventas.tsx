@@ -3,6 +3,7 @@ import { useMemo, useState } from 'preact/hooks';
 import type { Datos, Venta } from '../lib/registro.ts';
 import { round2 } from '../lib/registro.ts';
 import { eur, fecha, norm } from '../lib/format.ts';
+import { Selector } from './Selector.tsx';
 import { btn, empty, etiqueta, filaMovil, filtro, filtros, h2, icon, panel, panelHead, table, tableWrap, td, th, thR } from './ui.ts';
 
 // en móvil cada indicador es una sola línea: etiqueta a la izquierda y valor a la derecha
@@ -32,10 +33,8 @@ export function Ventas({ datos, onVer, onEliminar }: Props) {
       <div class={panelHead}>
         <h2 class={h2}>Ventas</h2>
         <div class={filtros}>
-          <select class={filtro} value={mes} onChange={e => setMes(e.currentTarget.value)}>
-            <option value="">Todos los meses</option>
-            {meses.map(m => <option key={m} value={m}>{m.slice(5)}/{m.slice(0, 4)}</option>)}
-          </select>
+          <Selector clase={filtro} valor={mes} vacio="Todos los meses" onChange={setMes}
+            opciones={meses.map(m => ({ valor: m, texto: `${m.slice(5)}/${m.slice(0, 4)}` }))} />
           <input class={filtro} type="search" placeholder="Buscar…" value={q} onInput={e => setQ(e.currentTarget.value)} />
         </div>
       </div>
