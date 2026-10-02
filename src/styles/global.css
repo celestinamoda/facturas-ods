@@ -26,8 +26,10 @@
   --color-danger: #b00020;
 }
 
-/* Puntos de corte: `tablet:` hasta 900 px y `movil:` hasta 600 px. En este orden, para que `movil:` gane. */
-@custom-variant tablet (@media (max-width: 900px));
-@custom-variant movil (@media (max-width: 600px));
+/* Puntos de corte: `tablet:` hasta 900 px y `movil:` hasta 600 px. En este orden, para que `movil:` gane.
+   Solo en pantalla: al imprimir desde un móvil la página mide como su pantalla, y la factura saldría
+   con el diseño de móvil en vez del de A4. */
+@custom-variant tablet (@media screen and (max-width: 900px));
+@custom-variant movil (@media screen and (max-width: 600px));
 
 @page { size: A4; margin: 12mm; }

@@ -49,7 +49,7 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 | `pwa/sw.js` | Plantilla del service worker, con los marcadores `__VERSION__` y `__FILES__` |
 | `pwa/integration.mjs` | Integración de Astro: al compilar escribe `dist/sw.js` con la lista de archivos |
 | `tests/ods.test.ts` | Test de ida y vuelta; depende del contenido de la plantilla |
-| `_github/workflows/deploy.yml` | Despliegue a GitHub Pages (hay que renombrar la carpeta a `.github`) |
+| `.github/workflows/deploy.yml` | Despliegue a GitHub Pages en cada push a `main` |
 
 ## Convenciones de estilo
 
@@ -94,8 +94,13 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   (ver `OdsDocument.toBytes` en `src/lib/ods.ts`).
 - La barra superior muestra `tienda.nombre` del archivo abierto: si el `.ods` del usuario lo tiene en
   mayúsculas, el logo sale en mayúsculas caligráficas.
-- Las bandas negras de la factura (cabecera de conceptos y TOTAL) son fondos: en el PDF solo salen si
-  en el diálogo de impresión está marcado "Gráficos de fondo".
+- **La factura impresa debe salir igual desde cualquier dispositivo**, en A4:
+  - `tablet:` y `movil:` son solo de pantalla (`@media screen and …`). Al imprimir desde un móvil
+    la página mide como su pantalla y, si no, la factura saldría con el diseño de móvil.
+  - En impresión la factura tiene ancho fijo `print:w-[186mm]` (A4 menos los 12 mm de margen de
+    `@page`), no el del papel ni el de la pantalla.
+  - Las bandas negras (cabecera de conceptos y TOTAL) son fondos; `[print-color-adjust:exact]` las
+    fuerza aunque el navegador no imprima fondos (en móvil no suele haber casilla para activarlos).
 - **Se publicará en `https://celestinamoda.github.io/facturas-ods`** (repo `celestinamoda/facturas-ods`).
   El workflow saca `base` del nombre del repo, no hay que escribirlo en ningún sitio. Ese origen se
   comparte con las demás webs de la cuenta (p. ej. `/contador`), así que todo lo que se guarde en el
@@ -118,7 +123,7 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 - Al probar con `BASE_PATH` desde Git Bash, la ruta se convierte sola en una de Windows; usa PowerShell.
 - Los scripts de `package.json` llaman a los binarios con `node node_modules/...`; ya venía así y no
   se sabe el motivo, así que no lo cambies sin preguntar.
-- El proyecto todavía **no es un repositorio git**.
+- El usuario ya inicializó git y renombró `_github` a `.github` (primer commit hecho el 2026-10-02).
 
 ## Estado (2026-10-02)
 
@@ -135,6 +140,10 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
 - Diseño responsive: navegación inferior y menú de archivo en móvil, tablas como tarjetas, modal a
   pantalla completa. Revisado con capturas de todas las vistas a 320, 360, 390, 768 y 1280 px, sin
   desbordes ni errores de consola. Sin probar en un teléfono real (teclado, gestos, zona segura).
+- Factura impresa igual en móvil y escritorio: el usuario la imprimió desde el móvil y salía distinta.
+  Comprobado imprimiendo a PDF en navegador headless con emulación de móvil y de escritorio: mismo
+  PDF, una página A4, con las bandas negras aunque los fondos estén desactivados. **Sin confirmar en
+  el teléfono real del usuario**: si allí sigue saliendo distinto, preguntar navegador y qué se ve.
 - La web recuerda el último archivo abierto y lo reabre al volver; botón "Cerrar" para olvidarlo.
   Probado en navegador headless: copia en bytes, handle con permiso ya concedido (releer y guardar
   encima), cerrar, y archivo borrado del disco. **Sin probar**: el caso en que el navegador vuelve a
@@ -145,10 +154,7 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
 - `public/favicon.svg` sigue siendo negro; no se ha adaptado al color principal ni al icono de la PWA.
 - La PWA no avisa de que hay versión nueva ni se registra como app para abrir archivos `.ods`
   (`file_handlers`); no se ha probado la instalación en un móvil real.
-- Forzar los fondos negros de la factura al imprimir (`print-color-adjust: exact`) para no depender
-  de la casilla "Gráficos de fondo". Ofrecido al usuario, sin respuesta.
 - El nombre de la tienda dentro de la factura va en Arial; ofrecido ponerlo en caligráfica, sin respuesta.
-- Inicializar git y publicar en GitHub Pages (pasos en `README.md`).
 - Un archivo arrastrado a la web no obtiene acceso al disco (se trata como copia); se podría pedir el
   handle con `DataTransferItem.getAsFileSystemHandle()` en Chrome/Edge.
 - En la lista de Ventas en móvil no se muestran Base ni IVA (sí en la factura); en tablet, tampoco IVA.

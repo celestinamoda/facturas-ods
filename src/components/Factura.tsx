@@ -26,7 +26,7 @@ const totalLabel = `${gris} self-center text-[8px] font-bold tracking-[.06em]`;
 export function Factura({ tienda: t, venta: v, lineas, cliente: c, notas, borrador }: FacturaData) {
   const huecos = Math.max(0, 12 - lineas.length);
   return (
-    <article id="factura-print" class="relative mx-auto w-full max-w-198.5 bg-white px-13 pt-12 pb-7.5 font-factura text-[10.5px] leading-[1.45] text-black shadow-[0_1px_0_var(--color-line)] movil:px-4.5 movil:py-6 print:max-w-none print:p-0 print:shadow-none">
+    <article id="factura-print" class="relative mx-auto w-full max-w-198.5 bg-white px-13 pt-12 pb-7.5 font-factura text-[10.5px] leading-[1.45] text-black shadow-[0_1px_0_var(--color-line)] movil:px-4.5 movil:py-6 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:w-[186mm] print:max-w-none print:p-0 print:shadow-none">
       {borrador && <div class="absolute top-3.5 right-13 border border-black px-2 py-0.75 text-[9px] font-bold tracking-[.14em] print:static print:mb-3 print:ml-auto print:w-fit">BORRADOR · sin registrar</div>}
       <header class="flex items-end justify-between gap-6 border-b-[2.5px] border-black pb-4 movil:flex-col movil:items-start">
         <div>

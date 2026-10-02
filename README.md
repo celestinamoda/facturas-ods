@@ -29,8 +29,6 @@ npm run preview  # sirve dist/; aquí sí hay service worker (en `dev` no)
 
 ## Publicar en GitHub Pages
 
-Renombra la carpeta `_github` a `.github` (contiene el workflow de despliegue).
-
 ```bash
 git init && git add . && git commit -m "Registro de ventas web"
 git branch -M main
