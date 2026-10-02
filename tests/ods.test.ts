@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 Object.assign(globalThis, { DOMParser, XMLSerializer });
-const { abrir, guardar, numeroFactura, totales, sumarDias, estadoDescuento, mejorDescuento } = await import('../src/lib/registro.ts');
+const { abrir, guardar, numeroFactura, totales, sumarDias, estadoDescuento, mejorDescuento, rebajaDeEtiqueta } = await import('../src/lib/registro.ts');
 import type { Descuento } from '../src/lib/registro.ts';
 
 const out = process.argv[2] ?? 'tests/salida.ods';
@@ -87,6 +87,11 @@ assert.equal(mejorDescuento([dto({ cliente: 'nuevo cliente sl' })], linea)?.prec
 assert.deepEqual(mejorDescuento([dto({ tipo: '€', valor: 2, nombre: '' })], linea), { indice: 0, etiqueta: 'Descuento (−2,00 €)', precio: 7.95 }); // Intl separa el € con un espacio duro
 assert.equal(mejorDescuento([dto({ tipo: '€', valor: 50 })], linea)?.precio, 0);
 assert.equal(mejorDescuento([dto({}), dto({ tipo: '€', valor: 2 }), dto({ valor: 5 })], linea)?.indice, 1);
+
+// en la factura sale la rebaja sin el nombre del descuento
+assert.equal(rebajaDeEtiqueta('Rebajas (−10 %)'), '−10 %');
+assert.equal(rebajaDeEtiqueta('Rebajas (enero) (−2,00\u00a0€)'), '−2,00\u00a0€');
+assert.equal(rebajaDeEtiqueta('texto escrito a mano en la hoja'), '');
 
 // ida y vuelta: la hoja Descuentos y las columnas de descuento de Detalle ventas
 third.datos.descuentos.push(dto({ maxUsos: 5, minCantidad: 2, cliente: 'Nuevo Cliente SL', facturas: ['2026-001', '2026-003'] }), dto({ nombre: 'Pausado', tipo: '€', valor: 1.5, desde: '', hasta: '', activo: false }));

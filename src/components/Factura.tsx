@@ -1,5 +1,6 @@
 // src/components/Factura.tsx
 import type { Cliente, Linea, Tienda, Venta } from '../lib/registro.ts';
+import { rebajaDeEtiqueta } from '../lib/registro.ts';
 import { eur, fecha, numero, pct } from '../lib/format.ts';
 
 export interface FacturaData {
@@ -66,7 +67,7 @@ export function Factura({ tienda: t, venta: v, lineas, cliente: c, notas, borrad
             <tr key={i}>
               <td class={td}>
                 {l.producto}
-                {l.descuento && <span class={`${gris} block text-[8px]`}>{l.descuento}{l.precioBase != null && ` · antes ${eur(l.precioBase)}`}</span>}
+                {l.descuento && <span class={`${gris} block text-[8px]`}>Descuento {rebajaDeEtiqueta(l.descuento)}{l.precioBase != null && ` · antes ${eur(l.precioBase)}`}</span>}
               </td>
               <td class={td}>{numero(l.cantidad)}</td>
               <td class={td}>{eur(l.precio)}</td>

@@ -7,7 +7,7 @@ import { norm } from '../lib/format.ts';
 import { Factura, type FacturaData } from './Factura.tsx';
 import { NuevaVenta, type NuevaVentaResult } from './NuevaVenta.tsx';
 import { Ventas } from './Ventas.tsx';
-import { TablaEditable } from './TablaEditable.tsx';
+import { Fichas } from './Fichas.tsx';
 import { TiendaForm } from './TiendaForm.tsx';
 import { Descuentos } from './Descuentos.tsx';
 import { btn, error as errorCls, iconBase, muted } from './ui.ts';
@@ -295,12 +295,12 @@ export default function App() {
         {tab === 'venta' && <NuevaVenta key={formKey} datos={datos} onPreview={r => abrirFactura(r, false)} onRegistrar={registrar} />}
         {tab === 'ventas' && <Ventas datos={datos} onVer={verVenta} onEliminar={eliminarVenta} />}
         {tab === 'clientes' && (
-          <TablaEditable<Cliente & Record<string, unknown>>
-            titulo="Clientes" ayuda="El nombre es el que se elige al hacer una venta" capacidad={300} ancha
+          <Fichas<Cliente & Record<string, unknown>>
+            titulo="Clientes" singular="cliente" ayuda="El nombre es el que se elige al hacer una venta" capacidad={300}
             columnas={[
-              { key: 'nombre', label: 'Nombre / razón social', ancho: '22%' }, { key: 'nif', label: 'NIF / CIF', ancho: '9rem' },
-              { key: 'direccion', label: 'Dirección' }, { key: 'cp', label: 'CP', ancho: '5.5rem' }, { key: 'ciudad', label: 'Ciudad' },
-              { key: 'provincia', label: 'Provincia' }, { key: 'email', label: 'Email' }, { key: 'telefono', label: 'Teléfono', ancho: '9rem' },
+              { key: 'nombre', label: 'Nombre / razón social' }, { key: 'nif', label: 'NIF / CIF' },
+              { key: 'direccion', label: 'Dirección' }, { key: 'cp', label: 'CP' }, { key: 'ciudad', label: 'Ciudad' },
+              { key: 'provincia', label: 'Provincia' }, { key: 'email', label: 'Email' }, { key: 'telefono', label: 'Teléfono' },
             ]}
             filas={datos.clientes as (Cliente & Record<string, unknown>)[]}
             nueva={() => ({ nombre: '', nif: '', direccion: '', cp: '', ciudad: '', provincia: '', email: '', telefono: '' })}
@@ -308,11 +308,11 @@ export default function App() {
           />
         )}
         {tab === 'productos' && (
-          <TablaEditable<Producto & Record<string, unknown>>
-            titulo="Productos" ayuda="Precio sin IVA" capacidad={300}
+          <Fichas<Producto & Record<string, unknown>>
+            titulo="Productos" singular="producto" ayuda="Precio sin IVA" capacidad={300}
             columnas={[
-              { key: 'nombre', label: 'Producto / servicio', ancho: '40%' },
-              { key: 'precio', label: 'Precio (sin IVA)', tipo: 'dinero', ancho: '10rem' }, { key: 'notas', label: 'Notas' },
+              { key: 'nombre', label: 'Producto / servicio' },
+              { key: 'precio', label: 'Precio (sin IVA)', tipo: 'dinero' }, { key: 'notas', label: 'Notas' },
             ]}
             filas={datos.productos as (Producto & Record<string, unknown>)[]}
             nueva={() => ({ nombre: '', precio: null, notas: '' })}

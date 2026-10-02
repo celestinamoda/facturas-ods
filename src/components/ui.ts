@@ -48,7 +48,8 @@ const TD = 'border-b border-line align-middle movil:block movil:border-0 movil:p
 // celda de solo lectura / celda que contiene un input
 export const td = `${TD} px-3 py-1.5 group-hover:bg-[#fafafa] movil:group-hover:bg-transparent`;
 export const tdInput = `${TD} px-1 py-1.25 first:pl-0`;
-// en móvil, el título de la columna encima de la celda: <td class={tdLabel} data-label="…">
-export const tdLabel = 'movil:before:mb-1 movil:before:block movil:before:text-[10px] movil:before:font-bold movil:before:tracking-[.08em] movil:before:text-muted movil:before:uppercase movil:before:content-[attr(data-label)]';
+// listado de fichas (clientes, productos, descuentos): nombre y resumen a la izquierda, botones a la derecha
+export const lista = 'border-t border-line';
+export const listaFila = 'flex items-center gap-3 border-b border-line py-2.5';
 // tarjeta de una fila en móvil
 export const filaMovil = 'movil:grid movil:gap-2 movil:border-b movil:border-line movil:py-3';

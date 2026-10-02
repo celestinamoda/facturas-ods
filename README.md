@@ -48,7 +48,7 @@ compila y publica en `https://celestinamoda.github.io/facturas-ods/` en cada pus
 | `src/lib/registro.ts` | Mapea hojas ↔ datos (Tienda, Clientes, Productos, Ventas, Detalle ventas, Descuentos), cálculos y reglas de descuento |
 | `src/lib/archivo.ts` | Abrir/guardar (File System Access API con descarga como alternativa) |
 | `src/lib/recuerdo.ts` | Recuerda el último archivo abierto (IndexedDB) |
-| `src/components/` | Interfaz: nueva venta, ventas, tablas editables, tienda y factura imprimible |
+| `src/components/` | Interfaz: nueva venta, ventas, listados con edición en modal (clientes, productos, descuentos), tienda y factura imprimible |
 | `src/components/ui.ts` | Clases de Tailwind compartidas (botones, campos, tablas, paneles) |
 | `src/styles/global.css` | Tema de Tailwind: color principal, grises y fuentes |
 | `public/plantilla.ods` | Registro vacío con macros |

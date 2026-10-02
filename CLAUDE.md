@@ -33,8 +33,9 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 | `src/components/App.tsx` | Estado global (sesión, datos, pestaña, modal), barra superior, abrir/guardar, imprimir |
 | `src/components/NuevaVenta.tsx` | Formulario de venta, líneas y totales |
 | `src/components/Ventas.tsx` | Listado con filtros y KPIs |
-| `src/components/TablaEditable.tsx` | Tabla genérica editable (Clientes y Productos) |
-| `src/components/Descuentos.tsx` | Página de descuentos: una ficha por descuento |
+| `src/components/Fichas.tsx` | Listado genérico con edición en modal (Clientes y Productos) |
+| `src/components/ModalFormulario.tsx` | Modal de formulario común a Fichas y Descuentos |
+| `src/components/Descuentos.tsx` | Página de descuentos: listado con estado y resumen, y edición en modal |
 | `src/components/TiendaForm.tsx` | Datos de la tienda (hoja Tienda) |
 | `src/components/Factura.tsx` | Factura que se ve en el modal y se imprime a PDF |
 | `src/components/ui.ts` | Cadenas de clases de Tailwind compartidas |
@@ -72,12 +73,11 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
     solo se ve dentro de ese menú, por decisión del usuario: no volver a ponerlo en la barra.
   - Pestañas: en tablet bajan a una fila propia; en móvil son una barra fija abajo con iconos y
     texto corto (son seis: no cabe el largo).
-  - Tablas: en móvil dejan de ser tabla (`table`, `td`, `tdInput`, `filaMovil` de `ui.ts`): se oculta
-    la cabecera y cada fila es una tarjeta cuya rejilla define el componente en su `<tr>`. El título
-    de columna se pinta con `tdLabel` + `data-label`. `TablaEditable` con `ancha` (Clientes) pasa a
-    tarjetas ya en tablet.
+  - Tablas (líneas de Nueva venta y Ventas): en móvil dejan de ser tabla (`table`, `td`, `tdInput`,
+    `filaMovil` de `ui.ts`): se oculta la cabecera y cada fila es una tarjeta cuya rejilla define el
+    componente en su `<tr>`.
+  - Los modales (factura y formularios) ocupan toda la pantalla en móvil.
   - Campos a 16 px en móvil (`movil:text-base`): con menos, iOS hace zoom al enfocarlos.
-  - El modal de factura ocupa toda la pantalla en móvil.
   - No debe haber desplazamiento horizontal de página a ningún ancho (probado de 320 a 1280 px).
 - **Color principal**: `primary` = `rgb(250 212 193)` (`#FAD4C1`, el mismo que el proyecto
   `celestinamoda/contador`), con `primary-dark` para el hover. El texto encima va en `ink` (negro),
@@ -97,6 +97,15 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   (ver `OdsDocument.toBytes` en `src/lib/ods.ts`).
 - La barra superior muestra `tienda.nombre` del archivo abierto: si el `.ods` del usuario lo tiene en
   mayúsculas, el logo sale en mayúsculas caligráficas.
+- **Clientes, Productos y Descuentos no se editan en línea**: el usuario pidió ver solo el nombre (con
+  un resumen del resto debajo) y un botón «Editar» que abre el formulario en un modal
+  (`ModalFormulario.tsx`; estilos del listado en `lista` y `listaFila` de `ui.ts`). El modal trabaja
+  sobre una copia: «Aceptar» aplica, «Cancelar» o Escape descartan, y no se cierra al pulsar fuera.
+  En clientes y productos el nombre es obligatorio. «Aceptar» no guarda el archivo: eso sigue siendo
+  «Guardar».
+- **El nombre de un descuento no sale en la factura** (decisión del usuario): solo «Descuento −10 % ·
+  antes 45,00 €». El nombre sí se guarda en la columna DESCUENTO de Detalle ventas, dentro de la
+  etiqueta «Nombre (−10 %)»; `rebajaDeEtiqueta` saca la parte que se imprime.
 - **Descuentos** (reglas en `estadoDescuento` y `mejorDescuento` de `registro.ts`, cubiertas por el test):
   - Cada descuento es para un producto (o todos si se deja vacío), en % o en euros por unidad, con
     rango de fechas (extremos incluidos, según la fecha de la venta), límite de usos, cantidad
@@ -165,6 +174,9 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
   (reglas e ida y vuelta del `.ods`, incluido un registro antiguo) y con un recorrido en navegador
   headless: crear, aplicar, quitar a mano, agotar el límite y recuperar el uso al borrar la factura.
 - En Nueva venta, al poner un producto la cantidad se rellena con 1.
+- Clientes, Productos y Descuentos pasan a listado con edición en modal (recorridos probados en
+  navegador headless: editar, cancelar, añadir, eliminar, que el precio nuevo llega a Nueva venta, y
+  que el descuento se aplica y la factura no enseña su nombre).
 - Factura impresa igual en móvil y escritorio: el usuario la imprimió desde el móvil y salía distinta.
   Comprobado imprimiendo a PDF en navegador headless con emulación de móvil y de escritorio: mismo
   PDF, una página A4, con las bandas negras aunque los fondos estén desactivados. **Sin confirmar en

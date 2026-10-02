@@ -68,7 +68,7 @@ export interface Linea {
   /** precio por unidad ya con el descuento aplicado, si lo hay */
   precio: number;
   importe: number;
-  /** descuento aplicado, tal como sale en la factura: «Rebajas (−10 %)» */
+  /** descuento aplicado: «Rebajas (−10 %)». En la factura solo sale la rebaja, sin el nombre. */
   descuento?: string;
   /** precio por unidad antes del descuento */
   precioBase?: number | null;
@@ -329,6 +329,9 @@ export function estadoDescuento(x: Descuento, fecha: string): EstadoDescuento {
 
 export const etiquetaDescuento = (x: Descuento): string =>
   `${x.nombre || 'Descuento'} (−${x.tipo === '%' ? `${numero(x.valor)} %` : eur(x.valor)})`;
+
+/** Solo la rebaja de una etiqueta («−10 %»), sin el nombre del descuento: es lo que sale en la factura. */
+export const rebajaDeEtiqueta = (etiqueta: string): string => etiqueta.match(/\(([^()]*)\)\s*$/)?.[1] ?? '';
 
 export interface DescuentoAplicado {
   /** posición en `Datos.descuentos` */
