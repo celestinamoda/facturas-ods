@@ -69,6 +69,8 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
         const p = precios.get(norm(l.producto));
         next[i] = { ...l, precio: p === undefined || p === null ? '' : String(p).replace('.', ',') };
       }
+      // al poner un producto, cantidad 1 si aún no hay ninguna
+      if (patch.producto?.trim() && !next[i].cantidad) next[i] = { ...next[i], cantidad: '1' };
       if (i === next.length - 1 && next[i].producto.trim()) next.push(vacia());
       return next;
     });
