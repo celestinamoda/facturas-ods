@@ -37,15 +37,23 @@ export interface Cliente {
   telefono: string;
 }
 
+export interface Subvariedad {
+  nombre: string;
+  /** null = el precio de su variedad (o el general, si tampoco tiene) */
+  precio: number | null;
+}
+
 export interface Variedad {
   nombre: string;
   /** null = el precio general del producto */
   precio: number | null;
+  /** variedades dentro de esta (p. ej. las tallas de un color); si hay alguna, en la venta se elige una */
+  subvariedades: Subvariedad[];
 }
 
 export interface Producto {
   nombre: string;
-  /** precio general, sin IVA */
+  /** precio general, con el IVA incluido */
   precio: number | null;
   notas: string;
   /** p. ej. colores o tallas; si hay alguna, en la venta se elige una */
@@ -67,7 +75,7 @@ export interface Venta {
   irpf: number;
   total: number;
   pdf: string;
-  /** gastos de envío, sin IVA; van incluidos en `base` */
+  /** gastos de envío, con el IVA incluido; van dentro de `total` */
   envio?: number;
 }
 
@@ -120,7 +128,8 @@ export const HOJAS = { ventas: 'Ventas', detalle: 'Detalle ventas', clientes: 'C
 // y se crea al guardar el primer descuento.
 // Igual que la de descuentos, la hoja de variedades es opcional y se crea al guardar la primera.
 const HOJA_VARIEDADES = 'Variedades';
-const VARIEDAD_COLS = ['PRODUCTO', 'VARIEDAD', 'PRECIO'];
+// SUBVARIEDAD va al final porque se añadió después: las hojas hechas antes solo tienen las tres primeras
+const VARIEDAD_COLS = ['PRODUCTO', 'VARIEDAD', 'PRECIO', 'SUBVARIEDAD'];
 const HOJA_DESCUENTOS = 'Descuentos';
 const DESCUENTO_COLS = ['NOMBRE', 'PRODUCTO', 'TIPO', 'VALOR', 'DESDE', 'HASTA', 'LÍMITE DE USOS', 'CANT. MÍNIMA', 'CLIENTE', 'ACTIVO', 'USADO EN'];
 const TOP = 6;
@@ -203,11 +212,16 @@ export async function abrir(bytes: ArrayBuffer | Uint8Array): Promise<{ registro
   const rp = rowsOf(ods.sheet(HOJAS.productos), 3, CAP.productos);
   const productos = rp.rows.map(
     ([nombre, precio, notas]): Producto => ({ nombre: str(nombre), precio: numOrNull(precio), notas: str(notas), variedades: [] }));
-  // cada variedad va con su producto; las de un producto que no existe se ignoran
-  const rva = names.includes(HOJA_VARIEDADES) ? rowsOf(ods.sheet(HOJA_VARIEDADES), 3, CAP.variedades) : { rows: [], span: 0 };
-  for (const [producto, nombre, precio] of rva.rows) {
+  // cada variedad va con su producto; las de un producto que no existe se ignoran.
+  // Una fila sin SUBVARIEDAD es la variedad y su precio; con ella, una subvariedad y el suyo.
+  const rva = names.includes(HOJA_VARIEDADES) ? rowsOf(ods.sheet(HOJA_VARIEDADES), 4, CAP.variedades) : { rows: [], span: 0 };
+  for (const [producto, nombre, precio, sub] of rva.rows) {
     const p = productos.find(x => norm(x.nombre) === norm(str(producto)));
-    if (p && str(nombre)) p.variedades.push({ nombre: str(nombre), precio: numOrNull(precio) });
+    if (!p || !str(nombre)) continue;
+    let v = p.variedades.find(x => norm(x.nombre) === norm(str(nombre)));
+    if (!v) p.variedades.push(v = { nombre: str(nombre), precio: null, subvariedades: [] });
+    if (str(sub)) v.subvariedades.push({ nombre: str(sub), precio: numOrNull(precio) });
+    else v.precio = numOrNull(precio);
   }
   // la última columna (gastos de envío) la añade la web; puede no estar
   const rv = rowsOf(ods.sheet(HOJAS.ventas), 14, CAP.ventas);
@@ -258,10 +272,18 @@ export async function guardar(registro: Registro, datos: Datos): Promise<Uint8Ar
     [c.nombre, c.nif, c.direccion, c.cp, c.ciudad, c.provincia, c.email, c.telefono]), 8, counts.clientes, CAP.clientes);
   writeTable(ods.sheet(HOJAS.productos), datos.productos.map(p =>
     [p.nombre, p.precio, p.notas]), 3, counts.productos, CAP.productos);
-  const variedades = datos.productos.flatMap(p => p.variedades.map((v): CellValue[] => [p.nombre, v.nombre, v.precio]));
+  const variedades = datos.productos.flatMap(p => p.variedades.flatMap((v): CellValue[][] => [
+    [p.nombre, v.nombre, v.precio, null],
+    ...v.subvariedades.map((s): CellValue[] => [p.nombre, v.nombre, s.precio, s.nombre]),
+  ]));
   const hayVariedades = ods.sheetNames().includes(HOJA_VARIEDADES);
   if (hayVariedades || variedades.length) {
-    writeTable(hayVariedades ? ods.sheet(HOJA_VARIEDADES) : crearHojaVariedades(ods), variedades, 3, counts.variedades, CAP.variedades);
+    const vaSheet = hayVariedades ? ods.sheet(HOJA_VARIEDADES) : crearHojaVariedades(ods);
+    writeTable(vaSheet, variedades, 4, counts.variedades, CAP.variedades);
+    if (variedades.some(r => r[3] !== null) && vaSheet.read(5, 5) === null) {
+      vaSheet.write(5, 5, VARIEDAD_COLS[3]);
+      vaSheet.setStyle(5, 5, vaSheet.styleOf(5, 4));
+    }
   }
   const veSheet = ods.sheet(HOJAS.ventas);
   writeTable(veSheet, datos.ventas.map(v =>
@@ -317,14 +339,14 @@ export const crearHojaDescuentos = (ods: OdsDocument): OdsSheet => crearHoja(ods
   'Un descuento por fila. Se gestionan desde la web; «USADO EN» lleva las facturas en las que se aplicó.', DESCUENTO_COLS);
 
 export const crearHojaVariedades = (ods: OdsDocument): OdsSheet => crearHoja(ods, HOJA_VARIEDADES,
-  'Una variedad por fila (color, talla…). PRODUCTO debe coincidir con la hoja Productos; sin PRECIO, vale el precio general.', VARIEDAD_COLS);
+  'Una variedad por fila (color…) y, debajo, una fila por cada subvariedad suya (talla…). PRODUCTO debe coincidir con la hoja Productos; sin PRECIO, vale el de la variedad o el general.', VARIEDAD_COLS);
 
 // ---------------------------------------------------------------- cálculos
 
 export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
-/** Nombre de un producto con su variedad, tal como va en la factura y en Detalle ventas. */
-export const nombreConVariedad = (producto: string, variedad: string): string => (variedad ? `${producto} · ${variedad}` : producto);
+/** Nombre de un producto con su variedad y subvariedad, tal como va en la factura y en Detalle ventas. */
+export const nombreConVariedad = (producto: string, variedad: string, sub = ''): string => [producto, variedad, sub].filter(Boolean).join(' · ');
 
 export function numeroFactura(t: Tienda): string {
   return `${t.serie}${String(Math.max(1, Math.trunc(t.sig))).padStart(3, '0')}`;
@@ -347,11 +369,23 @@ export interface Totales {
   total: number;
 }
 
-/** Los gastos de envío entran en la base imponible: llevan el mismo IVA que los productos. */
+/**
+ * Los precios y los gastos de envío llevan el IVA incluido: el total es su suma, y de él se sacan
+ * la base imponible y la cuota de IVA.
+ */
 export function totales(lineas: ReadonlyArray<{ importe: number }>, ivaPct: number, envio = 0): Totales {
-  const base = round2(lineas.reduce((s, l) => s + l.importe, 0) + envio);
-  const iva = round2(base * ivaPct);
-  return { base, iva, total: round2(base + iva) };
+  const total = round2(lineas.reduce((s, l) => s + l.importe, 0) + envio);
+  const base = round2(total / (1 + ivaPct));
+  return { base, iva: round2(total - base), total };
+}
+
+/**
+ * Si los precios de las líneas de una venta llevan el IVA incluido. Las ventas anteriores al cambio
+ * (y las hechas desde LibreOffice) lo llevan aparte: en ellas las líneas suman la base, no el total.
+ */
+export function ivaIncluido(v: Venta, lineas: ReadonlyArray<{ importe: number }>): boolean {
+  const suma = lineas.reduce((s, l) => s + l.importe, 0) + (v.envio ?? 0);
+  return Math.abs(suma - (v.total - v.irpf)) < 0.005;
 }
 
 // ---------------------------------------------------------------- descuentos

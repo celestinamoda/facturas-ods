@@ -105,27 +105,51 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   sobre una copia: «Aceptar» aplica, «Cancelar» o Escape descartan, y no se cierra al pulsar fuera.
   En clientes y productos el nombre es obligatorio. «Aceptar» no guarda el archivo: eso sigue siendo
   «Guardar».
-- **Variedades de producto** (colores, tallas…): cada producto tiene un precio general y una lista de
-  variedades, cada una con precio propio opcional (vacío = el general).
+- **Variedades de producto, con otras dentro** (colores y, dentro de cada color, sus tallas): cada
+  producto tiene un precio general y una lista de variedades; cada variedad puede tener a su vez su
+  propia lista (`Variedad.subvariedades`), distinta de la de las demás (Verde: XL y L; Rojo: M y S).
+  Son dos niveles, no más. El precio es opcional en los dos: vacío = el de arriba (subvariedad →
+  variedad → general).
   - En Nueva venta cada línea tiene el desplegable de producto y, **solo si ese producto tiene
     variedades**, un segundo desplegable para elegirla (así lo pidió el usuario; antes era un único
-    desplegable con «Vestido · Rosa»). Sin variedad elegida vale el precio general, pero la venta no
-    se puede registrar: avisa «Elige la variedad de…». Al cambiar de producto se quita la variedad.
-  - En la factura y en Detalle ventas va el nombre compuesto (`nombreConVariedad`). No hay columna
-    aparte para la variedad.
+    desplegable con «Vestido · Rosa»), y un tercero solo si la variedad elegida tiene otras dentro.
+    Mientras falte alguno vale el precio de arriba, pero la venta no se puede registrar: avisa «Elige
+    la variedad de…». Al cambiar de producto se quitan las dos; al cambiar de variedad, la de dentro.
+  - En la factura y en Detalle ventas va el nombre compuesto, «Vestido · Verde · XL»
+    (`nombreConVariedad`). No hay columnas aparte para la variedad.
+  - En el modal de Productos, las de dentro van con sangría bajo su variedad, con «+ Añadir dentro
+    de «Verde»».
   - Los descuentos son por producto: valen para todas sus variedades.
-  - En el `.ods`: hoja **Variedades** (PRODUCTO, VARIEDAD, PRECIO), opcional como la de descuentos;
+  - En el `.ods`: hoja **Variedades** (PRODUCTO, VARIEDAD, PRECIO, SUBVARIEDAD), opcional como la de
+    descuentos. Una fila sin SUBVARIEDAD es la variedad con su precio; debajo, una fila por cada
+    subvariedad con el suyo. SUBVARIEDAD va la última porque se añadió después: en las hojas de
+    antes (incluida la de `public/plantilla.ods`) su rótulo se escribe al guardar la primera;
     se enlaza por el nombre del producto, y las filas de un producto que no existe se ignoran al
     abrir y desaparecen al guardar. La plantilla de LibreOffice no sabe de variedades.
+- **Los precios llevan el IVA incluido** (lo pidió el usuario): el precio de un producto, el de una
+  variedad, el de la línea de venta, los descuentos en euros y los gastos de envío son lo que paga el
+  cliente.
+  - `totales`: el total es la suma de las líneas más el envío; la base es total / (1 + IVA) y la cuota
+    de IVA, total − base (así base + IVA cuadra siempre con el total). El % de IVA de Nueva venta solo
+    cambia el desglose, no el total.
+  - En Nueva venta y en la factura el TOTAL va justo debajo de líneas y envío, y el desglose (base
+    imponible e IVA) debajo del total. La cabecera de la factura dice «PRECIO (IVA INCL.)».
+  - **Las ventas anteriores al cambio y las hechas desde LibreOffice llevan los precios sin IVA.** No
+    hay columna que lo diga: `ivaIncluido(venta, líneas)` lo deduce (si líneas + envío suman el total,
+    lo llevan incluido) y `Factura.tsx` pinta las antiguas como antes (base, IVA y luego total).
+  - En el `.ods` no cambia ninguna columna: Detalle ventas guarda precio e importe con IVA, y Ventas
+    la base, el IVA y el total ya calculados. **La plantilla de LibreOffice no se ha tocado**: la hoja
+    Productos sigue diciendo «PRECIO (SIN IVA)» y su Nueva venta sumaría el IVA encima. Los precios
+    que hubiera en un registro de antes se leen tal cual, ahora como precios con IVA.
 - **Sin IRPF y con gastos de envío** (lo pidió el usuario):
   - La web ya no aplica IRPF: no hay campo en Nueva venta ni en Tienda, y las ventas nuevas guardan
     0 en las columnas «IRPF %» e «IRPF» de la hoja Ventas, que se conservan. La factura solo pinta la
     fila de IRPF si la venta lo lleva (facturas antiguas), para que su total cuadre. El valor
     «Retención IRPF por defecto» de la hoja Tienda se lee y se reescribe igual, pero no se usa.
-  - Gastos de envío: un importe por venta (`Venta.envio`), que **entra en la base imponible** y por
-    tanto lleva el mismo IVA que los productos (`totales`). En el `.ods`, columna nueva O «GASTOS DE
-    ENVÍO» en Ventas, que solo escribe la web; la BASE (H) ya lo incluye, así que la suma de las líneas
-    de Detalle ventas es base − envío. No hay envío por defecto ni envío gratis a partir de un importe.
+  - Gastos de envío: un importe por venta (`Venta.envio`), con el IVA incluido como los productos y al
+    mismo tipo (`totales`). En el `.ods`, columna nueva O «GASTOS DE ENVÍO» en Ventas, que solo
+    escribe la web; la suma de las líneas de Detalle ventas es total − envío. No hay envío por
+    defecto ni envío gratis a partir de un importe.
   - La plantilla de LibreOffice (hojas Nueva venta y Factura, macros) sigue teniendo IRPF y no sabe
     de envíos.
 - **Desplegables propios, no los del sistema** (decisión del usuario): no se usa `<select>` en ningún
@@ -218,7 +242,11 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
   navegador headless: editar, cancelar, añadir, eliminar, que el precio nuevo llega a Nueva venta, y
   que el descuento se aplica y la factura no enseña su nombre).
 - Variedades de producto con precio por variedad (test de ida y vuelta y recorrido en navegador headless).
+- Variedades dentro de variedades (color → tallas), con tercer desplegable en Nueva venta (test de ida
+  y vuelta y recorrido en navegador headless, también a 390 px).
 - IRPF quitado de la interfaz y gastos de envío añadidos (test y recorrido en navegador headless).
+- Precios con IVA incluido en productos, variedades, ventas y envío (test y recorrido en navegador
+  headless: Productos, Nueva venta, factura y listado de Ventas).
 - Desplegables del sistema sustituidos por uno propio con buscador (probado en navegador headless con
   ratón y teclado reales, dentro de modales y en móvil).
 - Autocompletar sustituido por desplegables en Nueva venta y en el modal de descuentos (probado en
@@ -242,5 +270,7 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
   handle con `DataTransferItem.getAsFileSystemHandle()` en Chrome/Edge.
 - En la lista de Ventas en móvil no se muestran Base ni IVA (sí en la factura); en tablet, tampoco IVA.
 - No hay tests de interfaz; solo el de lectura/escritura del `.ods` y las reglas de descuento.
-- Variedades: sin existencias ni descuentos por variedad; una sola dimensión (no color × talla).
+- La plantilla de LibreOffice sigue trabajando con precios sin IVA (rótulo de Productos, hoja Nueva
+  venta y macros); no se ha adaptado al IVA incluido.
+- Variedades: sin existencias ni descuentos por variedad; dos niveles como máximo.
 - Descuentos: no hay códigos/cupones, ni descuento sobre el total de la factura, ni acumulación.

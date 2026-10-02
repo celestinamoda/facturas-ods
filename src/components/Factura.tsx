@@ -1,6 +1,6 @@
 // src/components/Factura.tsx
 import type { Cliente, Linea, Tienda, Venta } from '../lib/registro.ts';
-import { rebajaDeEtiqueta } from '../lib/registro.ts';
+import { ivaIncluido, rebajaDeEtiqueta } from '../lib/registro.ts';
 import { eur, fecha, numero, pct } from '../lib/format.ts';
 
 export interface FacturaData {
@@ -26,6 +26,14 @@ const totalLabel = `${gris} self-center text-[8px] font-bold tracking-[.06em]`;
 
 export function Factura({ tienda: t, venta: v, lineas, cliente: c, notas, borrador }: FacturaData) {
   const huecos = Math.max(0, 12 - lineas.length);
+  // las facturas anteriores al cambio llevan los precios sin IVA y se siguen pintando como entonces
+  const incluido = ivaIncluido(v, lineas);
+  const desglose = (
+    <>
+      <div class={total}><span class={totalLabel}>BASE IMPONIBLE</span><span>{eur(v.base)}</span></div>
+      <div class={total}><span class={totalLabel}>IVA {pct(v.ivaPct)}{incluido && ' (INCLUIDO)'}</span><span>{eur(v.iva)}</span></div>
+    </>
+  );
   return (
     <article id="factura-print" class="relative mx-auto w-full max-w-198.5 bg-white px-13 pt-12 pb-7.5 font-factura text-[10.5px] leading-[1.45] text-black shadow-[0_1px_0_var(--color-line)] movil:px-4.5 movil:py-6 [-webkit-print-color-adjust:exact] [print-color-adjust:exact] print:w-[186mm] print:max-w-none print:p-0 print:shadow-none">
       {borrador && <div class="absolute top-3.5 right-13 border border-black px-2 py-0.75 text-[9px] font-bold tracking-[.14em] print:static print:mb-3 print:ml-auto print:w-fit">BORRADOR · sin registrar</div>}
@@ -60,7 +68,7 @@ export function Factura({ tienda: t, venta: v, lineas, cliente: c, notas, borrad
 
       <table class="w-full border-collapse">
         <thead>
-          <tr><th class={th}>CONCEPTO</th><th class={th}>CANT.</th><th class={th}>PRECIO</th><th class={th}>IMPORTE</th></tr>
+          <tr><th class={th}>CONCEPTO</th><th class={th}>CANT.</th><th class={th}>{incluido ? 'PRECIO (IVA INCL.)' : 'PRECIO'}</th><th class={th}>IMPORTE</th></tr>
         </thead>
         <tbody>
           {lineas.map((l, i) => (
@@ -82,13 +90,14 @@ export function Factura({ tienda: t, venta: v, lineas, cliente: c, notas, borrad
 
       <section class="mt-4 ml-auto w-75 tabular-nums movil:w-full">
         {!!v.envio && <div class={total}><span class={totalLabel}>GASTOS DE ENVÍO</span><span>{eur(v.envio)}</span></div>}
-        <div class={total}><span class={totalLabel}>BASE IMPONIBLE</span><span>{eur(v.base)}</span></div>
-        <div class={total}><span class={totalLabel}>IVA {pct(v.ivaPct)}</span><span>{eur(v.iva)}</span></div>
+        {!incluido && desglose}
         {/* la web ya no aplica IRPF; solo sale en facturas antiguas que lo llevan, para que el total cuadre */}
         {v.irpf !== 0 && <div class={total}><span class={totalLabel}>IRPF −{pct(v.irpfPct)}</span><span>{eur(v.irpf)}</span></div>}
         <div class="mt-1.5 flex justify-between bg-black px-2.5 py-2.75 text-[15px] font-bold text-white">
           <span class="self-center text-[10px] tracking-[.06em]">TOTAL</span><span>{eur(v.total)}</span>
         </div>
+        {/* con el IVA incluido, el total es la suma de lo de arriba y el desglose va debajo */}
+        {incluido && <div class="mt-1.5">{desglose}</div>}
       </section>
 
       {notas && (

@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 Object.assign(globalThis, { DOMParser, XMLSerializer });
-const { abrir, guardar, numeroFactura, totales, sumarDias, estadoDescuento, mejorDescuento, rebajaDeEtiqueta, nombreConVariedad } = await import('../src/lib/registro.ts');
+const { abrir, guardar, numeroFactura, totales, ivaIncluido, sumarDias, estadoDescuento, mejorDescuento, rebajaDeEtiqueta, nombreConVariedad } = await import('../src/lib/registro.ts');
 import type { Descuento } from '../src/lib/registro.ts';
 
 const out = process.argv[2] ?? 'tests/salida.ods';
@@ -42,7 +42,10 @@ assert.equal(again.datos.clientes.length, 3);
 assert.equal(again.datos.ventas.length, 3);
 assert.equal(again.datos.ventas[2].num, '2026-003');
 assert.equal(again.datos.ventas[0].vencimiento, '2026-11-01');
-assert.equal(again.datos.ventas[0].total, 145.02);
+// los precios llevan el IVA incluido: el total es la suma de las líneas
+assert.equal(again.datos.ventas[0].total, 119.85);
+assert.equal(again.datos.ventas[0].base, 99.05);
+assert.equal(again.datos.ventas[0].iva, 20.8);
 assert.equal(again.datos.lineas.length, 6);
 
 // borrar una venta y un cliente: no deben quedar restos
@@ -57,24 +60,36 @@ assert.equal(third.datos.clientes.length, 2);
 
 // ---------------------------------------------------------------- variedades
 assert.deepEqual(datos.productos[0].variedades, []);
-third.datos.productos[2].variedades = [{ nombre: 'Rosa', precio: null }, { nombre: 'Azul', precio: 12.5 }];
-third.datos.productos[0].variedades = [{ nombre: 'Único', precio: 40 }];
+// dentro de una variedad puede haber otras (las tallas de un color), cada una con su precio opcional
+const verde = { nombre: 'Verde', precio: null, subvariedades: [{ nombre: 'XL', precio: 14 }, { nombre: 'L', precio: null }] };
+const rojo = { nombre: 'Rojo', precio: 12.5, subvariedades: [{ nombre: 'M', precio: null }, { nombre: 'S', precio: null }] };
+const unico = { nombre: 'Único', precio: 40, subvariedades: [] };
+third.datos.productos[2].variedades = [verde, rojo];
+third.datos.productos[0].variedades = [unico];
 writeFileSync(out, await guardar(third.registro, third.datos));
 const conVar = await abrir(readFileSync(out));
-assert.deepEqual(conVar.datos.productos.map(p => p.variedades), [[{ nombre: 'Único', precio: 40 }], [], [{ nombre: 'Rosa', precio: null }, { nombre: 'Azul', precio: 12.5 }]]);
+assert.deepEqual(conVar.datos.productos.map(p => p.variedades), [[unico], [], [verde, rojo]]);
+assert.equal(third.registro.ods.sheet('Variedades').read(5, 5), 'SUBVARIEDAD');
 // al borrar un producto se van sus variedades, y no quedan restos en la hoja
 conVar.datos.productos.splice(2, 1);
 writeFileSync(out, await guardar(conVar.registro, conVar.datos));
 assert.deepEqual((await abrir(readFileSync(out))).datos.productos.map(p => p.variedades.length), [1, 0]);
 assert.equal(nombreConVariedad('Vestido', 'Rosa'), 'Vestido · Rosa');
 assert.equal(nombreConVariedad('Vestido', ''), 'Vestido');
+assert.equal(nombreConVariedad('Vestido', 'Verde', 'XL'), 'Vestido · Verde · XL');
 third.datos.productos[2].variedades = [];
 third.datos.productos[0].variedades = [];
 
 // ---------------------------------------------------------------- gastos de envío
-// entran en la base imponible y llevan IVA
-assert.deepEqual(totales([{ importe: 90 }, { importe: 10 }], 0.21, 4.5), { base: 104.5, iva: 21.95, total: 126.45 });
-assert.deepEqual(totales([{ importe: 100 }], 0.21), { base: 100, iva: 21, total: 121 });
+// precios y envío llevan el IVA incluido: el total es la suma, y la base y el IVA salen de él
+assert.deepEqual(totales([{ importe: 90 }, { importe: 10 }], 0.21, 4.5), { base: 86.36, iva: 18.14, total: 104.5 });
+assert.deepEqual(totales([{ importe: 121 }], 0.21), { base: 100, iva: 21, total: 121 });
+assert.deepEqual(totales([{ importe: 100 }], 0), { base: 100, iva: 0, total: 100 });
+// una venta nueva lleva el IVA incluido en sus líneas; una anterior al cambio, no
+const venta = { num: 'F1', fecha: '2026-10-02', vencimiento: '', cliente: 'A', nif: '', pago: '', ivaPct: 0.21, irpfPct: 0, irpf: 0, pdf: '' };
+assert.equal(ivaIncluido({ ...venta, base: 86.36, iva: 18.14, total: 104.5, envio: 4.5 }, [{ importe: 100 }]), true);
+assert.equal(ivaIncluido({ ...venta, base: 104.5, iva: 21.95, total: 126.45, envio: 4.5 }, [{ importe: 100 }]), false);
+assert.equal(ivaIncluido({ ...venta, base: 100, iva: 21, total: 121 }, [{ importe: 100 }]), false);
 assert.equal(third.datos.ventas[0].envio, 0); // ventas sin envío
 third.datos.ventas[0] = { ...third.datos.ventas[0], envio: 4.5 };
 writeFileSync(out, await guardar(third.registro, third.datos));
@@ -145,7 +160,7 @@ const nuevo = await abrir(readFileSync(out));
 assert.deepEqual(nuevo.datos.descuentos, [dto({})]);
 assert.equal(nuevo.datos.clientes.length, 2);
 assert.equal(nuevo.registro.ods.sheetNames().includes('Variedades'), false);
-nuevo.datos.productos[0].variedades = [{ nombre: 'Rosa', precio: null }];
+nuevo.datos.productos[0].variedades = [{ nombre: 'Rosa', precio: null, subvariedades: [{ nombre: 'M', precio: 9 }] }];
 writeFileSync(out, await guardar(nuevo.registro, nuevo.datos));
-assert.deepEqual((await abrir(readFileSync(out))).datos.productos[0].variedades, [{ nombre: 'Rosa', precio: null }]);
+assert.deepEqual((await abrir(readFileSync(out))).datos.productos[0].variedades, [{ nombre: 'Rosa', precio: null, subvariedades: [{ nombre: 'M', precio: 9 }] }]);
 console.log(`ok · ${Math.round(performance.now() - t0)} ms`);
