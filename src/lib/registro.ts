@@ -37,10 +37,19 @@ export interface Cliente {
   telefono: string;
 }
 
+export interface Variedad {
+  nombre: string;
+  /** null = el precio general del producto */
+  precio: number | null;
+}
+
 export interface Producto {
   nombre: string;
+  /** precio general, sin IVA */
   precio: number | null;
   notas: string;
+  /** p. ej. colores o tallas; si hay alguna, en la venta se elige una */
+  variedades: Variedad[];
 }
 
 export interface Venta {
@@ -109,10 +118,13 @@ export interface Datos {
 export const HOJAS = { ventas: 'Ventas', detalle: 'Detalle ventas', clientes: 'Clientes', productos: 'Productos', tienda: 'Tienda' } as const;
 // La hoja de descuentos es opcional: los registros hechos antes de que existiera no la tienen,
 // y se crea al guardar el primer descuento.
+// Igual que la de descuentos, la hoja de variedades es opcional y se crea al guardar la primera.
+const HOJA_VARIEDADES = 'Variedades';
+const VARIEDAD_COLS = ['PRODUCTO', 'VARIEDAD', 'PRECIO'];
 const HOJA_DESCUENTOS = 'Descuentos';
 const DESCUENTO_COLS = ['NOMBRE', 'PRODUCTO', 'TIPO', 'VALOR', 'DESDE', 'HASTA', 'LÍMITE DE USOS', 'CANT. MÍNIMA', 'CLIENTE', 'ACTIVO', 'USADO EN'];
 const TOP = 6;
-const CAP = { clientes: 300, productos: 300, ventas: 1000, lineas: 3000, descuentos: 200 } as const;
+const CAP = { clientes: 300, productos: 300, ventas: 1000, lineas: 3000, descuentos: 200, variedades: 1000 } as const;
 
 const TIENDA_LABELS: Record<string, keyof Tienda> = {
   'NOMBRE COMERCIAL': 'nombre',
@@ -190,7 +202,13 @@ export async function abrir(bytes: ArrayBuffer | Uint8Array): Promise<{ registro
     }));
   const rp = rowsOf(ods.sheet(HOJAS.productos), 3, CAP.productos);
   const productos = rp.rows.map(
-    ([nombre, precio, notas]): Producto => ({ nombre: str(nombre), precio: numOrNull(precio), notas: str(notas) }));
+    ([nombre, precio, notas]): Producto => ({ nombre: str(nombre), precio: numOrNull(precio), notas: str(notas), variedades: [] }));
+  // cada variedad va con su producto; las de un producto que no existe se ignoran
+  const rva = names.includes(HOJA_VARIEDADES) ? rowsOf(ods.sheet(HOJA_VARIEDADES), 3, CAP.variedades) : { rows: [], span: 0 };
+  for (const [producto, nombre, precio] of rva.rows) {
+    const p = productos.find(x => norm(x.nombre) === norm(str(producto)));
+    if (p && str(nombre)) p.variedades.push({ nombre: str(nombre), precio: numOrNull(precio) });
+  }
   // la última columna (gastos de envío) la añade la web; puede no estar
   const rv = rowsOf(ods.sheet(HOJAS.ventas), 14, CAP.ventas);
   const ventas = rv.rows.map(
@@ -217,7 +235,7 @@ export async function abrir(bytes: ArrayBuffer | Uint8Array): Promise<{ registro
   return {
     registro: {
       ods,
-      counts: { clientes: rc.span, productos: rp.span, ventas: rv.span, lineas: rl.span, descuentos: rd.span },
+      counts: { clientes: rc.span, productos: rp.span, ventas: rv.span, lineas: rl.span, descuentos: rd.span, variedades: rva.span },
     },
     datos: { tienda: tienda as unknown as Tienda, clientes, productos, ventas, lineas, descuentos },
   };
@@ -240,6 +258,11 @@ export async function guardar(registro: Registro, datos: Datos): Promise<Uint8Ar
     [c.nombre, c.nif, c.direccion, c.cp, c.ciudad, c.provincia, c.email, c.telefono]), 8, counts.clientes, CAP.clientes);
   writeTable(ods.sheet(HOJAS.productos), datos.productos.map(p =>
     [p.nombre, p.precio, p.notas]), 3, counts.productos, CAP.productos);
+  const variedades = datos.productos.flatMap(p => p.variedades.map((v): CellValue[] => [p.nombre, v.nombre, v.precio]));
+  const hayVariedades = ods.sheetNames().includes(HOJA_VARIEDADES);
+  if (hayVariedades || variedades.length) {
+    writeTable(hayVariedades ? ods.sheet(HOJA_VARIEDADES) : crearHojaVariedades(ods), variedades, 3, counts.variedades, CAP.variedades);
+  }
   const veSheet = ods.sheet(HOJAS.ventas);
   writeTable(veSheet, datos.ventas.map(v =>
     [v.num, d(v.fecha), d(v.vencimiento), v.cliente, v.nif, v.pago, v.base, v.ivaPct, v.iva, v.irpfPct, v.irpf, v.total, v.pdf, v.envio || null]),
@@ -273,26 +296,35 @@ export async function guardar(registro: Registro, datos: Datos): Promise<Uint8Ar
   const bytes = await ods.toBytes();
   registro.counts = {
     clientes: datos.clientes.length, productos: datos.productos.length,
-    ventas: datos.ventas.length, lineas: datos.lineas.length, descuentos: datos.descuentos.length,
+    ventas: datos.ventas.length, lineas: datos.lineas.length, descuentos: datos.descuentos.length, variedades: variedades.length,
   };
   return bytes;
 }
 
-/** Hoja «Descuentos» con el mismo esquema que las demás: título en B2, cabecera en la fila 5. */
-export function crearHojaDescuentos(ods: OdsDocument): OdsSheet {
-  const sh = ods.addSheet(HOJA_DESCUENTOS, DESCUENTO_COLS.length + 1);
-  sh.write(2, 2, 'DESCUENTOS');
-  sh.write(3, 2, 'Un descuento por fila. Se gestionan desde la web; «USADO EN» lleva las facturas en las que se aplicó.');
-  sh.writeRows(5, 2, [DESCUENTO_COLS]);
+/** Hoja nueva con el mismo esquema que las demás: título en B2, ayuda en B3 y cabecera en la fila 5. */
+function crearHoja(ods: OdsDocument, nombre: string, ayuda: string, cols: string[]): OdsSheet {
+  const sh = ods.addSheet(nombre, cols.length + 1);
+  sh.write(2, 2, nombre.toUpperCase());
+  sh.write(3, 2, ayuda);
+  sh.writeRows(5, 2, [cols]);
   const ref = ods.sheet(HOJAS.productos);
   sh.setStyle(2, 2, ref.styleOf(2, 2));
-  DESCUENTO_COLS.forEach((_, i) => sh.setStyle(5, 2 + i, ref.styleOf(5, 2)));
+  cols.forEach((_, i) => sh.setStyle(5, 2 + i, ref.styleOf(5, 2)));
   return sh;
 }
+
+export const crearHojaDescuentos = (ods: OdsDocument): OdsSheet => crearHoja(ods, HOJA_DESCUENTOS,
+  'Un descuento por fila. Se gestionan desde la web; «USADO EN» lleva las facturas en las que se aplicó.', DESCUENTO_COLS);
+
+export const crearHojaVariedades = (ods: OdsDocument): OdsSheet => crearHoja(ods, HOJA_VARIEDADES,
+  'Una variedad por fila (color, talla…). PRODUCTO debe coincidir con la hoja Productos; sin PRECIO, vale el precio general.', VARIEDAD_COLS);
 
 // ---------------------------------------------------------------- cálculos
 
 export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/** Nombre de un producto con su variedad, tal como va en la factura y en Detalle ventas. */
+export const nombreConVariedad = (producto: string, variedad: string): string => (variedad ? `${producto} · ${variedad}` : producto);
 
 export function numeroFactura(t: Tienda): string {
   return `${t.serie}${String(Math.max(1, Math.trunc(t.sig))).padStart(3, '0')}`;

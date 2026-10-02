@@ -1,6 +1,6 @@
 // src/components/App.tsx
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { abrir, guardar, type Cliente, type Datos, type Producto, type Registro, type Venta } from '../lib/registro.ts';
+import { abrir, guardar, type Cliente, type Datos, type Registro, type Venta } from '../lib/registro.ts';
 import { descargar, desdeFile, elegirArchivo, escribir, guardarComo, puedeGuardarEncima, reabrir, type Archivo, type FileHandle } from '../lib/archivo.ts';
 import { olvidar, recordar, recuperar, type Recuerdo } from '../lib/recuerdo.ts';
 import { norm } from '../lib/format.ts';
@@ -8,6 +8,7 @@ import { Factura, type FacturaData } from './Factura.tsx';
 import { NuevaVenta, type NuevaVentaResult } from './NuevaVenta.tsx';
 import { Ventas } from './Ventas.tsx';
 import { Fichas } from './Fichas.tsx';
+import { Productos } from './Productos.tsx';
 import { TiendaForm } from './TiendaForm.tsx';
 import { Descuentos } from './Descuentos.tsx';
 import { btn, error as errorCls, iconBase, muted } from './ui.ts';
@@ -308,16 +309,7 @@ export default function App() {
           />
         )}
         {tab === 'productos' && (
-          <Fichas<Producto & Record<string, unknown>>
-            titulo="Productos" singular="producto" ayuda="Precio sin IVA" capacidad={300}
-            columnas={[
-              { key: 'nombre', label: 'Producto / servicio' },
-              { key: 'precio', label: 'Precio (sin IVA)', tipo: 'dinero' }, { key: 'notas', label: 'Notas' },
-            ]}
-            filas={datos.productos as (Producto & Record<string, unknown>)[]}
-            nueva={() => ({ nombre: '', precio: null, notas: '' })}
-            onChange={productos => cambiar(d => ({ ...d, productos }))}
-          />
+          <Productos productos={datos.productos} onChange={productos => cambiar(d => ({ ...d, productos }))} />
         )}
         {tab === 'descuentos' && <Descuentos datos={datos} onChange={descuentos => cambiar(d => ({ ...d, descuentos }))} />}
         {tab === 'tienda' && <TiendaForm tienda={datos.tienda} onChange={tienda => cambiar(d => ({ ...d, tienda }))} />}

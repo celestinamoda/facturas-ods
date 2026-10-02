@@ -1,7 +1,7 @@
 // src/components/NuevaVenta.tsx
 import { useMemo, useState } from 'preact/hooks';
 import type { Datos, Linea, Venta } from '../lib/registro.ts';
-import { hoy, mejorDescuento, numeroFactura, round2, sumarDias, totales } from '../lib/registro.ts';
+import { hoy, mejorDescuento, nombreConVariedad, numeroFactura, round2, sumarDias, totales } from '../lib/registro.ts';
 import { eur, norm, parseNum } from '../lib/format.ts';
 import { Selector } from './Selector.tsx';
 import { btn, campo, error as errorCls, etiqueta, filaMovil, gridForm, h2, icon, input, muted, panel, panelHead, span2, span4, table, tableWrap, tdInput, th, thR } from './ui.ts';
@@ -19,12 +19,14 @@ const chip = 'mt-1.5 inline-flex cursor-pointer items-center gap-1.5 rounded-ful
 
 interface LineaForm {
   producto: string;
+  /** variedad elegida, si el producto tiene */
+  variedad: string;
   cantidad: string;
   precio: string;
   /** el descuento que le tocaría se ha quitado a mano en esta línea */
   sinDto: boolean;
 }
-const vacia = (): LineaForm => ({ producto: '', cantidad: '', precio: '', sinDto: false });
+const vacia = (): LineaForm => ({ producto: '', variedad: '', cantidad: '', precio: '', sinDto: false });
 
 export interface NuevaVentaResult {
   venta: Venta;
@@ -51,8 +53,8 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
   const [lineas, setLineas] = useState<LineaForm[]>([vacia(), vacia(), vacia()]);
   const [error, setError] = useState('');
 
-  const precios = useMemo(() => new Map(datos.productos.map(p => [norm(p.nombre), p.precio])), [datos.productos]);
-  const productos = useMemo(() => datos.productos.map(p => p.nombre), [datos.productos]);
+  const productos = useMemo(() => new Map(datos.productos.map(p => [p.nombre, p])), [datos.productos]);
+  const nombres = useMemo(() => datos.productos.map(p => p.nombre), [datos.productos]);
   const clientes = useMemo(() => new Map(datos.clientes.map(c => [norm(c.nombre), c])), [datos.clientes]);
   const num = numeroFactura(t);
   const duplicado = datos.ventas.some(v => v.num === num);
@@ -76,13 +78,17 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
   const ahorro = round2(validas.reduce((a, l) => a + (l.aplicado ? l.cantidad! * l.precio! - l.importe! : 0), 0));
 
   function setLinea(i: number, patch: Partial<LineaForm>) {
+    setError(''); // el aviso anterior puede haber dejado de valer
     setLineas(ls => {
       const next = ls.map((l, j) => (j === i ? { ...l, ...patch } : l));
       const l = next[i];
-      // al elegir producto se pone su precio de catálogo (luego se puede cambiar a mano)
-      if (patch.producto !== undefined) {
-        const p = precios.get(norm(l.producto));
-        next[i] = { ...l, precio: p === undefined || p === null ? '' : String(p).replace('.', ',') };
+      // Al elegir producto se quita la variedad anterior y se pone su precio general; al elegir
+      // variedad, el suyo si lo tiene. Luego el precio se puede cambiar a mano.
+      if (patch.producto !== undefined || patch.variedad !== undefined) {
+        const p = productos.get(l.producto);
+        const variedad = patch.producto !== undefined ? '' : l.variedad;
+        const precio = p?.variedades.find(v => v.nombre === variedad)?.precio ?? p?.precio ?? null;
+        next[i] = { ...l, variedad, precio: precio === null ? '' : String(precio).replace('.', ',') };
       }
       // al poner un producto, cantidad 1 si aún no hay ninguna
       if (patch.producto?.trim() && !next[i].cantidad) next[i] = { ...next[i], cantidad: '1' };
@@ -96,7 +102,9 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
     if (!c) return fail('Elige un cliente. Si es nuevo, añádelo antes en Clientes.');
     if (!fecha) return fail('Falta la fecha.');
     const incompleta = calculadas.find(l => l.producto.trim() && (l.importe === null || (l.cantidad ?? 0) <= 0));
-    if (incompleta) return fail(`La línea «${incompleta.producto}» necesita cantidad y precio.`);
+    if (incompleta) return fail(`La línea «${nombreConVariedad(incompleta.producto, incompleta.variedad)}» necesita cantidad y precio.`);
+    const sinVariedad = validas.find(l => !l.variedad && productos.get(l.producto)?.variedades.length);
+    if (sinVariedad) return fail(`Elige la variedad de «${sinVariedad.producto}».`);
     if (!validas.length) return fail('Añade al menos un producto.');
     if (duplicado) return fail(`La factura ${num} ya existe. Revisa «Siguiente número» en Tienda.`);
     setError('');
@@ -105,7 +113,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
       base: tot.base, ivaPct: iva, iva: tot.iva, irpfPct: 0, irpf: 0, total: tot.total, pdf: '', envio: gastosEnvio,
     };
     const ls: Linea[] = validas.map(l => ({
-      num, fecha, cliente: c.nombre, producto: l.producto.trim(), cantidad: l.cantidad!, precio: l.final!, importe: l.importe!,
+      num, fecha, cliente: c.nombre, producto: nombreConVariedad(l.producto, l.variedad), cantidad: l.cantidad!, precio: l.final!, importe: l.importe!,
       ...(l.aplicado ? { descuento: l.aplicado.etiqueta, precioBase: l.precio! } : {}),
     }));
     const usados = [...new Set(validas.flatMap(l => (l.aplicado ? [l.aplicado.indice] : [])))];
@@ -163,7 +171,16 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
               // móvil: producto arriba a todo el ancho; debajo cantidad, precio, importe y quitar
               <tr key={i} class={`${filaMovil} movil:grid-cols-[1fr_1fr_auto_auto] movil:items-center`}>
                 <td class={`${tdInput} movil:col-span-4`}>
-                  <Selector valor={l.producto} opciones={productos} vacio="Producto…" onChange={producto => setLinea(i, { producto })} />
+                  {/* el desplegable de variedad solo sale si el producto elegido tiene variedades */}
+                  <div class="flex gap-2 movil:flex-col">
+                    <Selector valor={l.producto} opciones={nombres} vacio="Producto…" onChange={producto => setLinea(i, { producto })} />
+                    {!!productos.get(l.producto)?.variedades.length && (
+                      <div class="w-48 shrink-0 movil:w-full">
+                        <Selector valor={l.variedad} opciones={productos.get(l.producto)!.variedades.map(v => v.nombre)} vacio="Variedad…"
+                          onChange={variedad => setLinea(i, { variedad })} />
+                      </div>
+                    )}
+                  </div>
                   {l.dto && (
                     <button class={`${chip} ${l.aplicado ? 'bg-primary text-ink' : 'border border-dashed border-line-2 text-muted line-through'}`}
                       title={l.aplicado ? 'Quitar el descuento de esta línea' : 'Volver a aplicar el descuento'}

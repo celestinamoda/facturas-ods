@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 Object.assign(globalThis, { DOMParser, XMLSerializer });
-const { abrir, guardar, numeroFactura, totales, sumarDias, estadoDescuento, mejorDescuento, rebajaDeEtiqueta } = await import('../src/lib/registro.ts');
+const { abrir, guardar, numeroFactura, totales, sumarDias, estadoDescuento, mejorDescuento, rebajaDeEtiqueta, nombreConVariedad } = await import('../src/lib/registro.ts');
 import type { Descuento } from '../src/lib/registro.ts';
 
 const out = process.argv[2] ?? 'tests/salida.ods';
@@ -18,7 +18,7 @@ assert.equal(datos.ventas.length, 0);
 
 datos.tienda.nombre = 'Celestina web';
 datos.clientes.push({ nombre: 'Nuevo Cliente SL', nif: 'B87654321', direccion: 'C/ Sol 3', cp: '41001', ciudad: 'Sevilla', provincia: 'Sevilla', email: 'a@b.es', telefono: '955000000' });
-datos.productos.push({ nombre: 'Producto web', precio: 9.95, notas: '' });
+datos.productos.push({ nombre: 'Producto web', precio: 9.95, notas: '', variedades: [] });
 
 for (let n = 0; n < 3; n++) {
   const num = numeroFactura(datos.tienda);
@@ -54,6 +54,22 @@ const third = await abrir(readFileSync(out));
 assert.deepEqual(third.datos.ventas.map(v => v.num), ['2026-001', '2026-003']);
 assert.equal(third.datos.lineas.length, 4);
 assert.equal(third.datos.clientes.length, 2);
+
+// ---------------------------------------------------------------- variedades
+assert.deepEqual(datos.productos[0].variedades, []);
+third.datos.productos[2].variedades = [{ nombre: 'Rosa', precio: null }, { nombre: 'Azul', precio: 12.5 }];
+third.datos.productos[0].variedades = [{ nombre: 'Único', precio: 40 }];
+writeFileSync(out, await guardar(third.registro, third.datos));
+const conVar = await abrir(readFileSync(out));
+assert.deepEqual(conVar.datos.productos.map(p => p.variedades), [[{ nombre: 'Único', precio: 40 }], [], [{ nombre: 'Rosa', precio: null }, { nombre: 'Azul', precio: 12.5 }]]);
+// al borrar un producto se van sus variedades, y no quedan restos en la hoja
+conVar.datos.productos.splice(2, 1);
+writeFileSync(out, await guardar(conVar.registro, conVar.datos));
+assert.deepEqual((await abrir(readFileSync(out))).datos.productos.map(p => p.variedades.length), [1, 0]);
+assert.equal(nombreConVariedad('Vestido', 'Rosa'), 'Vestido · Rosa');
+assert.equal(nombreConVariedad('Vestido', ''), 'Vestido');
+third.datos.productos[2].variedades = [];
+third.datos.productos[0].variedades = [];
 
 // ---------------------------------------------------------------- gastos de envío
 // entran en la base imponible y llevan IVA
@@ -128,4 +144,8 @@ writeFileSync(out, await guardar(viejo.registro, viejo.datos));
 const nuevo = await abrir(readFileSync(out));
 assert.deepEqual(nuevo.datos.descuentos, [dto({})]);
 assert.equal(nuevo.datos.clientes.length, 2);
+assert.equal(nuevo.registro.ods.sheetNames().includes('Variedades'), false);
+nuevo.datos.productos[0].variedades = [{ nombre: 'Rosa', precio: null }];
+writeFileSync(out, await guardar(nuevo.registro, nuevo.datos));
+assert.deepEqual((await abrir(readFileSync(out))).datos.productos[0].variedades, [{ nombre: 'Rosa', precio: null }]);
 console.log(`ok · ${Math.round(performance.now() - t0)} ms`);

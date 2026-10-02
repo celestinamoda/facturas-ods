@@ -33,7 +33,8 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 | `src/components/App.tsx` | Estado global (sesión, datos, pestaña, modal), barra superior, abrir/guardar, imprimir |
 | `src/components/NuevaVenta.tsx` | Formulario de venta, líneas y totales |
 | `src/components/Ventas.tsx` | Listado con filtros y KPIs |
-| `src/components/Fichas.tsx` | Listado genérico con edición en modal (Clientes y Productos) |
+| `src/components/Fichas.tsx` | Listado genérico con edición en modal (ahora solo lo usa Clientes) |
+| `src/components/Productos.tsx` | Listado de productos; el modal incluye sus variedades |
 | `src/components/ModalFormulario.tsx` | Modal de formulario común a Fichas y Descuentos |
 | `src/components/Selector.tsx` | Desplegable de textos (clientes, productos, formas de pago) |
 | `src/components/Descuentos.tsx` | Página de descuentos: listado con estado y resumen, y edición en modal |
@@ -104,6 +105,18 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   sobre una copia: «Aceptar» aplica, «Cancelar» o Escape descartan, y no se cierra al pulsar fuera.
   En clientes y productos el nombre es obligatorio. «Aceptar» no guarda el archivo: eso sigue siendo
   «Guardar».
+- **Variedades de producto** (colores, tallas…): cada producto tiene un precio general y una lista de
+  variedades, cada una con precio propio opcional (vacío = el general).
+  - En Nueva venta cada línea tiene el desplegable de producto y, **solo si ese producto tiene
+    variedades**, un segundo desplegable para elegirla (así lo pidió el usuario; antes era un único
+    desplegable con «Vestido · Rosa»). Sin variedad elegida vale el precio general, pero la venta no
+    se puede registrar: avisa «Elige la variedad de…». Al cambiar de producto se quita la variedad.
+  - En la factura y en Detalle ventas va el nombre compuesto (`nombreConVariedad`). No hay columna
+    aparte para la variedad.
+  - Los descuentos son por producto: valen para todas sus variedades.
+  - En el `.ods`: hoja **Variedades** (PRODUCTO, VARIEDAD, PRECIO), opcional como la de descuentos;
+    se enlaza por el nombre del producto, y las filas de un producto que no existe se ignoran al
+    abrir y desaparecen al guardar. La plantilla de LibreOffice no sabe de variedades.
 - **Sin IRPF y con gastos de envío** (lo pidió el usuario):
   - La web ya no aplica IRPF: no hay campo en Nueva venta ni en Tienda, y las ventas nuevas guardan
     0 en las columnas «IRPF %» e «IRPF» de la hoja Ventas, que se conservan. La factura solo pinta la
@@ -194,6 +207,7 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
 - Clientes, Productos y Descuentos pasan a listado con edición en modal (recorridos probados en
   navegador headless: editar, cancelar, añadir, eliminar, que el precio nuevo llega a Nueva venta, y
   que el descuento se aplica y la factura no enseña su nombre).
+- Variedades de producto con precio por variedad (test de ida y vuelta y recorrido en navegador headless).
 - IRPF quitado de la interfaz y gastos de envío añadidos (test y recorrido en navegador headless).
 - Autocompletar sustituido por desplegables en Nueva venta y en el modal de descuentos (probado en
   navegador headless).
@@ -216,4 +230,5 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
   handle con `DataTransferItem.getAsFileSystemHandle()` en Chrome/Edge.
 - En la lista de Ventas en móvil no se muestran Base ni IVA (sí en la factura); en tablet, tampoco IVA.
 - No hay tests de interfaz; solo el de lectura/escritura del `.ods` y las reglas de descuento.
+- Variedades: sin existencias ni descuentos por variedad; una sola dimensión (no color × talla).
 - Descuentos: no hay códigos/cupones, ni descuento sobre el total de la factura, ni acumulación.
