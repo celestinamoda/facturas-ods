@@ -17,7 +17,7 @@ const GRUPOS: { titulo: string; campos: Campo[] }[] = [
   { titulo: 'Cobro', campos: [
     { key: 'iban', label: 'IBAN', ancho: 'full' }, { key: 'titular', label: 'Titular de la cuenta' },
     { key: 'pago', label: 'Forma de pago habitual' }, { key: 'dias', label: 'Días hasta vencimiento', tipo: 'num' },
-    { key: 'iva', label: 'IVA por defecto (%)', tipo: 'pct' }, { key: 'irpf', label: 'Retención IRPF por defecto (%)', tipo: 'pct' },
+    { key: 'iva', label: 'IVA por defecto (%)', tipo: 'pct' },
   ] },
   { titulo: 'Numeración', campos: [
     { key: 'serie', label: 'Serie (prefijo)', ayuda: 'Cámbialo cada año: 2027-, 2028-…' },

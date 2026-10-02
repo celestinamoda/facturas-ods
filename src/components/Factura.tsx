@@ -81,9 +81,11 @@ export function Factura({ tienda: t, venta: v, lineas, cliente: c, notas, borrad
       </table>
 
       <section class="mt-4 ml-auto w-75 tabular-nums movil:w-full">
+        {!!v.envio && <div class={total}><span class={totalLabel}>GASTOS DE ENVÍO</span><span>{eur(v.envio)}</span></div>}
         <div class={total}><span class={totalLabel}>BASE IMPONIBLE</span><span>{eur(v.base)}</span></div>
         <div class={total}><span class={totalLabel}>IVA {pct(v.ivaPct)}</span><span>{eur(v.iva)}</span></div>
-        <div class={total}><span class={totalLabel}>IRPF −{pct(v.irpfPct)}</span><span>{eur(v.irpf)}</span></div>
+        {/* la web ya no aplica IRPF; solo sale en facturas antiguas que lo llevan, para que el total cuadre */}
+        {v.irpf !== 0 && <div class={total}><span class={totalLabel}>IRPF −{pct(v.irpfPct)}</span><span>{eur(v.irpf)}</span></div>}
         <div class="mt-1.5 flex justify-between bg-black px-2.5 py-2.75 text-[15px] font-bold text-white">
           <span class="self-center text-[10px] tracking-[.06em]">TOTAL</span><span>{eur(v.total)}</span>
         </div>

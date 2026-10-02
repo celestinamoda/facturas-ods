@@ -104,6 +104,17 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   sobre una copia: «Aceptar» aplica, «Cancelar» o Escape descartan, y no se cierra al pulsar fuera.
   En clientes y productos el nombre es obligatorio. «Aceptar» no guarda el archivo: eso sigue siendo
   «Guardar».
+- **Sin IRPF y con gastos de envío** (lo pidió el usuario):
+  - La web ya no aplica IRPF: no hay campo en Nueva venta ni en Tienda, y las ventas nuevas guardan
+    0 en las columnas «IRPF %» e «IRPF» de la hoja Ventas, que se conservan. La factura solo pinta la
+    fila de IRPF si la venta lo lleva (facturas antiguas), para que su total cuadre. El valor
+    «Retención IRPF por defecto» de la hoja Tienda se lee y se reescribe igual, pero no se usa.
+  - Gastos de envío: un importe por venta (`Venta.envio`), que **entra en la base imponible** y por
+    tanto lleva el mismo IVA que los productos (`totales`). En el `.ods`, columna nueva O «GASTOS DE
+    ENVÍO» en Ventas, que solo escribe la web; la BASE (H) ya lo incluye, así que la suma de las líneas
+    de Detalle ventas es base − envío. No hay envío por defecto ni envío gratis a partir de un importe.
+  - La plantilla de LibreOffice (hojas Nueva venta y Factura, macros) sigue teniendo IRPF y no sabe
+    de envíos.
 - **Cliente, producto y forma de pago se eligen en desplegables** (`Selector.tsx`), no con
   autocompletar: lo pidió el usuario. Consecuencia: en una venta solo se pueden poner productos y
   clientes que ya estén dados de alta. Si un valor guardado ya no está en la lista (producto borrado,
@@ -183,6 +194,7 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
 - Clientes, Productos y Descuentos pasan a listado con edición en modal (recorridos probados en
   navegador headless: editar, cancelar, añadir, eliminar, que el precio nuevo llega a Nueva venta, y
   que el descuento se aplica y la factura no enseña su nombre).
+- IRPF quitado de la interfaz y gastos de envío añadidos (test y recorrido en navegador headless).
 - Autocompletar sustituido por desplegables en Nueva venta y en el modal de descuentos (probado en
   navegador headless).
 - Factura impresa igual en móvil y escritorio: el usuario la imprimió desde el móvil y salía distinta.

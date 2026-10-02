@@ -10,7 +10,7 @@ const PAGOS = ['Transferencia', 'Efectivo', 'Tarjeta', 'Bizum', 'Domiciliación'
 
 const fila = 'flex items-center justify-between border-b border-line py-1.75 tabular-nums';
 const filaLabel = 'text-xs font-bold tracking-[.06em] text-muted uppercase';
-const pctInput = 'w-[3.6rem] rounded-md border border-line-2 bg-field px-1.5 py-0.5 text-right outline-none focus:border-ink focus:bg-white movil:text-base';
+const pctInput = 'rounded-md border border-line-2 bg-field px-1.5 py-0.5 text-right outline-none focus:border-ink focus:bg-white movil:text-base';
 // el texto de ayuda solo hace falta en móvil, donde no hay cabecera de tabla
 const numero = 'text-right tabular-nums placeholder:text-transparent movil:placeholder:text-muted';
 const ancho = 'min-w-65 movil:w-full movil:min-w-0';
@@ -47,7 +47,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
   const [pago, setPago] = useState(t.pago || 'Transferencia');
   const [notas, setNotas] = useState('');
   const [ivaPct, setIvaPct] = useState(String(Math.round(t.iva * 10000) / 100));
-  const [irpfPct, setIrpfPct] = useState(String(Math.round(t.irpf * 10000) / 100));
+  const [envio, setEnvio] = useState('');
   const [lineas, setLineas] = useState<LineaForm[]>([vacia(), vacia(), vacia()]);
   const [error, setError] = useState('');
 
@@ -71,8 +71,8 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
   });
   const validas = calculadas.filter(l => l.producto.trim() && l.importe !== null);
   const iva = (parseNum(ivaPct) ?? 0) / 100;
-  const irpf = (parseNum(irpfPct) ?? 0) / 100;
-  const tot = totales(validas.map(l => ({ importe: l.importe! })), iva, irpf);
+  const gastosEnvio = round2(Math.max(0, parseNum(envio) ?? 0));
+  const tot = totales(validas.map(l => ({ importe: l.importe! })), iva, gastosEnvio);
   const ahorro = round2(validas.reduce((a, l) => a + (l.aplicado ? l.cantidad! * l.precio! - l.importe! : 0), 0));
 
   function setLinea(i: number, patch: Partial<LineaForm>) {
@@ -102,7 +102,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
     setError('');
     const venta: Venta = {
       num, fecha, vencimiento: sumarDias(fecha, t.dias), cliente: c.nombre, nif: c.nif, pago,
-      base: tot.base, ivaPct: iva, iva: tot.iva, irpfPct: irpf, irpf: tot.irpf, total: tot.total, pdf: '',
+      base: tot.base, ivaPct: iva, iva: tot.iva, irpfPct: 0, irpf: 0, total: tot.total, pdf: '', envio: gastosEnvio,
     };
     const ls: Linea[] = validas.map(l => ({
       num, fecha, cliente: c.nombre, producto: l.producto.trim(), cantidad: l.cantidad!, precio: l.final!, importe: l.importe!,
@@ -117,7 +117,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
   }
   function limpiar() {
     setCliente(''); setFecha(hoy()); setPago(t.pago || 'Transferencia'); setNotas('');
-    setIvaPct(String(Math.round(t.iva * 10000) / 100)); setIrpfPct(String(Math.round(t.irpf * 10000) / 100));
+    setIvaPct(String(Math.round(t.iva * 10000) / 100)); setEnvio('');
     setLineas([vacia(), vacia(), vacia()]); setError('');
   }
 
@@ -189,14 +189,14 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
       <div class="mt-5.5 flex flex-wrap-reverse items-end justify-between gap-6 movil:flex-wrap">
         <div class="ml-auto w-[min(380px,100%)]">
           {ahorro > 0 && <div class={fila}><span class={filaLabel}>Descuentos</span><b>−{eur(ahorro)}</b></div>}
+          <div class={fila}>
+            <span class={filaLabel}>Gastos de envío <input class={`${pctInput} w-20`} inputMode="decimal" placeholder="0" value={envio} onInput={e => setEnvio(e.currentTarget.value)} /> €</span>
+            <b>{eur(gastosEnvio)}</b>
+          </div>
           <div class={fila}><span class={filaLabel}>Base imponible</span><b>{eur(tot.base)}</b></div>
           <div class={fila}>
-            <span class={filaLabel}>IVA <input class={pctInput} inputMode="decimal" value={ivaPct} onInput={e => setIvaPct(e.currentTarget.value)} /> %</span>
+            <span class={filaLabel}>IVA <input class={`${pctInput} w-[3.6rem]`} inputMode="decimal" value={ivaPct} onInput={e => setIvaPct(e.currentTarget.value)} /> %</span>
             <b>{eur(tot.iva)}</b>
-          </div>
-          <div class={fila}>
-            <span class={filaLabel}>IRPF <input class={pctInput} inputMode="decimal" value={irpfPct} onInput={e => setIrpfPct(e.currentTarget.value)} /> %</span>
-            <b>{eur(tot.irpf)}</b>
           </div>
           <div class="mt-2 flex items-center justify-between rounded-lg bg-primary px-3.5 py-3 text-ink tabular-nums">
             <span class="text-xs font-bold tracking-[.06em] uppercase">TOTAL</span><b class="text-xl">{eur(tot.total)}</b>

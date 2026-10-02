@@ -26,9 +26,9 @@ for (let n = 0; n < 3; n++) {
     { producto: 'Producto de ejemplo A', cantidad: 2, precio: 45 },
     { producto: 'Producto web', cantidad: 3, precio: 9.95 },
   ].map(l => ({ ...l, importe: Math.round(l.cantidad * l.precio * 100) / 100 }));
-  const t = totales(ls, datos.tienda.iva, datos.tienda.irpf);
+  const t = totales(ls, datos.tienda.iva);
   datos.ventas.push({ num, fecha: '2026-10-02', vencimiento: sumarDias('2026-10-02', datos.tienda.dias), cliente: 'Nuevo Cliente SL',
-    nif: 'B87654321', pago: 'Bizum', base: t.base, ivaPct: datos.tienda.iva, iva: t.iva, irpfPct: 0, irpf: t.irpf, total: t.total, pdf: '' });
+    nif: 'B87654321', pago: 'Bizum', base: t.base, ivaPct: datos.tienda.iva, iva: t.iva, irpfPct: 0, irpf: 0, total: t.total, pdf: '' });
   for (const l of ls) datos.lineas.push({ num, fecha: '2026-10-02', cliente: 'Nuevo Cliente SL', ...l });
   datos.tienda.sig++;
 }
@@ -54,6 +54,15 @@ const third = await abrir(readFileSync(out));
 assert.deepEqual(third.datos.ventas.map(v => v.num), ['2026-001', '2026-003']);
 assert.equal(third.datos.lineas.length, 4);
 assert.equal(third.datos.clientes.length, 2);
+
+// ---------------------------------------------------------------- gastos de envío
+// entran en la base imponible y llevan IVA
+assert.deepEqual(totales([{ importe: 90 }, { importe: 10 }], 0.21, 4.5), { base: 104.5, iva: 21.95, total: 126.45 });
+assert.deepEqual(totales([{ importe: 100 }], 0.21), { base: 100, iva: 21, total: 121 });
+assert.equal(third.datos.ventas[0].envio, 0); // ventas sin envío
+third.datos.ventas[0] = { ...third.datos.ventas[0], envio: 4.5 };
+writeFileSync(out, await guardar(third.registro, third.datos));
+assert.deepEqual((await abrir(readFileSync(out))).datos.ventas.map(v => v.envio), [4.5, 0]);
 
 // ---------------------------------------------------------------- descuentos
 assert.equal(datos.descuentos.length, 0);

@@ -53,10 +53,13 @@ export interface Venta {
   base: number;
   ivaPct: number;
   iva: number;
+  /** La web ya no aplica IRPF: en las ventas nuevas es 0. Se conserva por las facturas antiguas. */
   irpfPct: number;
   irpf: number;
   total: number;
   pdf: string;
+  /** gastos de envío, sin IVA; van incluidos en `base` */
+  envio?: number;
 }
 
 export interface Linea {
@@ -188,11 +191,12 @@ export async function abrir(bytes: ArrayBuffer | Uint8Array): Promise<{ registro
   const rp = rowsOf(ods.sheet(HOJAS.productos), 3, CAP.productos);
   const productos = rp.rows.map(
     ([nombre, precio, notas]): Producto => ({ nombre: str(nombre), precio: numOrNull(precio), notas: str(notas) }));
-  const rv = rowsOf(ods.sheet(HOJAS.ventas), 13, CAP.ventas);
+  // la última columna (gastos de envío) la añade la web; puede no estar
+  const rv = rowsOf(ods.sheet(HOJAS.ventas), 14, CAP.ventas);
   const ventas = rv.rows.map(
     (r): Venta => ({
       num: str(r[0]), fecha: date(r[1]), vencimiento: date(r[2]), cliente: str(r[3]), nif: str(r[4]), pago: str(r[5]),
-      base: num(r[6]), ivaPct: num(r[7]), iva: num(r[8]), irpfPct: num(r[9]), irpf: num(r[10]), total: num(r[11]), pdf: str(r[12]),
+      base: num(r[6]), ivaPct: num(r[7]), iva: num(r[8]), irpfPct: num(r[9]), irpf: num(r[10]), total: num(r[11]), pdf: str(r[12]), envio: num(r[13]),
     }));
   // las dos últimas columnas (descuento y precio sin descuento) las añade la web; pueden no estar
   const rl = rowsOf(ods.sheet(HOJAS.detalle), 9, CAP.lineas);
@@ -236,9 +240,14 @@ export async function guardar(registro: Registro, datos: Datos): Promise<Uint8Ar
     [c.nombre, c.nif, c.direccion, c.cp, c.ciudad, c.provincia, c.email, c.telefono]), 8, counts.clientes, CAP.clientes);
   writeTable(ods.sheet(HOJAS.productos), datos.productos.map(p =>
     [p.nombre, p.precio, p.notas]), 3, counts.productos, CAP.productos);
-  writeTable(ods.sheet(HOJAS.ventas), datos.ventas.map(v =>
-    [v.num, d(v.fecha), d(v.vencimiento), v.cliente, v.nif, v.pago, v.base, v.ivaPct, v.iva, v.irpfPct, v.irpf, v.total, v.pdf]),
-  13, counts.ventas, CAP.ventas);
+  const veSheet = ods.sheet(HOJAS.ventas);
+  writeTable(veSheet, datos.ventas.map(v =>
+    [v.num, d(v.fecha), d(v.vencimiento), v.cliente, v.nif, v.pago, v.base, v.ivaPct, v.iva, v.irpfPct, v.irpf, v.total, v.pdf, v.envio || null]),
+  14, counts.ventas, CAP.ventas);
+  if (datos.ventas.some(v => v.envio) && veSheet.read(5, 15) === null) {
+    veSheet.write(5, 15, 'GASTOS DE ENVÍO');
+    veSheet.setStyle(5, 15, veSheet.styleOf(5, 14));
+  }
   const dSheet = ods.sheet(HOJAS.detalle);
   writeTable(dSheet, datos.lineas.map(l =>
     [l.num, d(l.fecha), l.cliente, l.producto, l.cantidad, l.precio, l.importe, l.descuento ?? null, l.precioBase ?? null]), 9, counts.lineas, CAP.lineas);
@@ -303,15 +312,14 @@ export function hoy(): string {
 export interface Totales {
   base: number;
   iva: number;
-  irpf: number;
   total: number;
 }
 
-export function totales(lineas: ReadonlyArray<{ importe: number }>, ivaPct: number, irpfPct: number): Totales {
-  const base = round2(lineas.reduce((s, l) => s + l.importe, 0));
+/** Los gastos de envío entran en la base imponible: llevan el mismo IVA que los productos. */
+export function totales(lineas: ReadonlyArray<{ importe: number }>, ivaPct: number, envio = 0): Totales {
+  const base = round2(lineas.reduce((s, l) => s + l.importe, 0) + envio);
   const iva = round2(base * ivaPct);
-  const irpf = -round2(base * irpfPct);
-  return { base, iva, irpf, total: round2(base + iva + irpf) };
+  return { base, iva, total: round2(base + iva) };
 }
 
 // ---------------------------------------------------------------- descuentos
