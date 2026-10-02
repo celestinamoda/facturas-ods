@@ -64,7 +64,10 @@ export function Factura({ tienda: t, venta: v, lineas, cliente: c, notas, borrad
         <tbody>
           {lineas.map((l, i) => (
             <tr key={i}>
-              <td class={td}>{l.producto}</td>
+              <td class={td}>
+                {l.producto}
+                {l.descuento && <span class={`${gris} block text-[8px]`}>{l.descuento}{l.precioBase != null && ` · antes ${eur(l.precioBase)}`}</span>}
+              </td>
               <td class={td}>{numero(l.cantidad)}</td>
               <td class={td}>{eur(l.precio)}</td>
               <td class={td}><b>{eur(l.importe)}</b></td>

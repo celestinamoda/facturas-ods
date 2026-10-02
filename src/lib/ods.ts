@@ -235,6 +235,18 @@ export class OdsSheet {
     this.writeRows(row, col, [[value]]);
   }
 
+  /** Nombre del estilo de una celda, para dar el mismo aspecto a otra con `setStyle`. */
+  styleOf(row: number, col: number): string | null {
+    const r = this.findRow(row);
+    const c = r && this.findCell(r.el, col);
+    return c?.getAttributeNS(NS.table, 'style-name') || null;
+  }
+
+  setStyle(row: number, col: number, style: string | null): void {
+    if (!style) return;
+    this.cellForWrite(this.explodeRows(row, row)[0], col).setAttributeNS(NS.table, 'table:style-name', style);
+  }
+
   /** Guarda el resultado de una celda con fórmula sin tocar la fórmula. */
   setFormulaResult(row: number, col: number, value: number): void {
     const cell = this.cellForWrite(this.explodeRows(row, row)[0], col);
@@ -329,6 +341,24 @@ export class OdsDocument {
   sheet(name: string): OdsSheet {
     const t = Array.from(this.dom.getElementsByTagNameNS(NS.table, 'table')).find(x => x.getAttributeNS(NS.table, 'name') === name);
     if (!t) throw new Error(`Falta la hoja «${name}»`);
+    return new OdsSheet(this.dom, t);
+  }
+
+  /** Añade una hoja vacía y sin estilos al final del libro, con `nCols` columnas de ancho normal. */
+  addSheet(name: string, nCols: number): OdsSheet {
+    const tables = Array.from(this.dom.getElementsByTagNameNS(NS.table, 'table'));
+    const last = tables[tables.length - 1];
+    const t = this.dom.createElementNS(NS.table, 'table:table');
+    t.setAttributeNS(NS.table, 'table:name', name);
+    const style = last.getAttributeNS(NS.table, 'style-name');
+    if (style) t.setAttributeNS(NS.table, 'table:style-name', style);
+    const cols = this.dom.createElementNS(NS.table, 'table:table-column');
+    setRepeat(cols, 'number-columns-repeated', nCols);
+    t.appendChild(cols);
+    const row = this.dom.createElementNS(NS.table, 'table:table-row');
+    row.appendChild(this.dom.createElementNS(NS.table, 'table:table-cell'));
+    t.appendChild(row);
+    last.parentNode!.insertBefore(t, last.nextSibling);
     return new OdsSheet(this.dom, t);
   }
 

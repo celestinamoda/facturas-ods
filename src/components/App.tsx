@@ -9,16 +9,18 @@ import { NuevaVenta, type NuevaVentaResult } from './NuevaVenta.tsx';
 import { Ventas } from './Ventas.tsx';
 import { TablaEditable } from './TablaEditable.tsx';
 import { TiendaForm } from './TiendaForm.tsx';
+import { Descuentos } from './Descuentos.tsx';
 import { btn, error as errorCls, iconBase, muted } from './ui.ts';
 
-type Tab = 'venta' | 'ventas' | 'clientes' | 'productos' | 'tienda';
-// pestaña, texto e icono (trazo SVG de 24×24, solo se ve en la barra inferior del móvil)
-const TABS: [Tab, string, string][] = [
-  ['venta', 'Nueva venta', 'M12 8v8M8 12h8M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z'],
-  ['ventas', 'Ventas', 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'],
-  ['clientes', 'Clientes', 'M16 19v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20 19v-1a4 4 0 0 0-3-3.87M15 4.13a3 3 0 0 1 0 5.74'],
-  ['productos', 'Productos', 'M3 12V4h8l10 10-8 8L3 12zM7.5 8.5h.01'],
-  ['tienda', 'Tienda', 'M4 10v10h16V10M3 10l2-6h14l2 6M3 10h18M10 20v-6h4v6'],
+type Tab = 'venta' | 'ventas' | 'clientes' | 'productos' | 'descuentos' | 'tienda';
+// pestaña, texto, texto corto e icono (trazo SVG de 24×24); los dos últimos son para la barra inferior del móvil
+const TABS: [Tab, string, string, string][] = [
+  ['venta', 'Nueva venta', 'Nueva', 'M12 8v8M8 12h8M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z'],
+  ['ventas', 'Ventas', 'Ventas', 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'],
+  ['clientes', 'Clientes', 'Clientes', 'M16 19v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20 19v-1a4 4 0 0 0-3-3.87M15 4.13a3 3 0 0 1 0 5.74'],
+  ['productos', 'Productos', 'Productos', 'M3 12V4h8l10 10-8 8L3 12zM7.5 8.5h.01'],
+  ['descuentos', 'Descuentos', 'Dtos.', 'M19 5 5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17.5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z'],
+  ['tienda', 'Tienda', 'Tienda', 'M4 10v10h16V10M3 10l2-6h14l2 6M3 10h18M10 20v-6h4v6'],
 ];
 // acciones de archivo del menú «⋯» de la barra superior
 const ACCIONES = ['Abrir otro archivo', 'Descargar una copia', 'Cerrar el archivo'];
@@ -175,6 +177,8 @@ export default function App() {
       ...d,
       ventas: [...d.ventas, r.venta],
       lineas: [...d.lineas, ...r.lineas],
+      // cada descuento aplicado gasta un uso: se apunta en él la factura
+      descuentos: d.descuentos.map((x, i) => (r.usados.includes(i) ? { ...x, facturas: [...x.facturas, r.venta.num] } : x)),
       tienda: { ...d.tienda, sig: Math.trunc(d.tienda.sig) + 1 },
     }));
     setFormKey(k => k + 1);
@@ -189,7 +193,13 @@ export default function App() {
 
   function eliminarVenta(v: Venta) {
     if (!confirm(`¿Eliminar la factura ${v.num} de ${v.cliente}? Se borra de Ventas y de Detalle ventas.`)) return;
-    cambiar(d => ({ ...d, ventas: d.ventas.filter(x => x.num !== v.num), lineas: d.lineas.filter(l => l.num !== v.num) }));
+    cambiar(d => ({
+      ...d,
+      ventas: d.ventas.filter(x => x.num !== v.num),
+      lineas: d.lineas.filter(l => l.num !== v.num),
+      // la factura borrada devuelve el uso a los descuentos que gastó
+      descuentos: d.descuentos.map(x => (x.facturas.includes(v.num) ? { ...x, facturas: x.facturas.filter(f => f !== v.num) } : x)),
+    }));
   }
 
   function imprimir() {
@@ -243,12 +253,12 @@ export default function App() {
       <header class="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center gap-4 bg-primary px-5 py-2.5 text-ink tablet:grid-cols-[1fr_auto] movil:gap-2 movil:px-3 print:hidden">
         <span class="min-w-0 truncate font-celestina text-[32px] leading-none">{datos.tienda.nombre || 'Celestina'}</span>
         {/* tablet: fila propia bajo la barra; móvil: barra fija abajo con iconos */}
-        <nav class="flex gap-0.5 rounded-full bg-ink/8 p-0.75 tablet:order-3 tablet:col-span-full tablet:max-w-full tablet:justify-self-start tablet:overflow-x-auto movil:fixed movil:inset-x-0 movil:bottom-0 movil:grid movil:max-w-none movil:justify-self-stretch movil:overflow-visible movil:grid-cols-5 movil:gap-0 movil:rounded-none movil:border-t movil:border-line movil:bg-paper movil:p-0 movil:pb-[env(safe-area-inset-bottom)]" role="tablist">
-          {TABS.map(([id, label, icono]) => (
+        <nav class="flex gap-0.5 rounded-full bg-ink/8 p-0.75 tablet:order-3 tablet:col-span-full tablet:max-w-full tablet:justify-self-start tablet:overflow-x-auto movil:fixed movil:inset-x-0 movil:bottom-0 movil:grid movil:max-w-none movil:justify-self-stretch movil:overflow-visible movil:grid-cols-6 movil:gap-0 movil:rounded-none movil:border-t movil:border-line movil:bg-paper movil:p-0 movil:pb-[env(safe-area-inset-bottom)]" role="tablist">
+          {TABS.map(([id, label, corto, icono]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-              class={`cursor-pointer appearance-none rounded-full border-0 px-3.5 py-1.75 text-[13px] font-semibold whitespace-nowrap movil:flex movil:flex-col movil:items-center movil:gap-0.5 movil:rounded-none movil:px-0.5 movil:pt-2 movil:pb-1.5 movil:text-[10.5px] ${tab === id ? 'bg-white text-ink movil:bg-primary/45' : 'bg-transparent text-ink-2 hover:text-ink'}`}>
+              class={`cursor-pointer appearance-none rounded-full border-0 px-3.5 py-1.75 text-[13px] font-semibold whitespace-nowrap movil:flex movil:flex-col movil:items-center movil:gap-0.5 movil:rounded-none movil:px-0 movil:pt-2 movil:pb-1.5 movil:text-[10px] ${tab === id ? 'bg-white text-ink movil:bg-primary/45' : 'bg-transparent text-ink-2 hover:text-ink'}`}>
               <svg class="hidden size-5.5 movil:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icono} /></svg>
-              {label}
+              <span class="movil:hidden">{label}</span><span class="hidden movil:inline">{corto}</span>
             </button>
           ))}
         </nav>
@@ -309,6 +319,7 @@ export default function App() {
             onChange={productos => cambiar(d => ({ ...d, productos }))}
           />
         )}
+        {tab === 'descuentos' && <Descuentos datos={datos} onChange={descuentos => cambiar(d => ({ ...d, descuentos }))} />}
         {tab === 'tienda' && <TiendaForm tienda={datos.tienda} onChange={tienda => cambiar(d => ({ ...d, tienda }))} />}
       </main>
 

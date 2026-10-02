@@ -1,7 +1,7 @@
 // src/components/NuevaVenta.tsx
 import { useMemo, useState } from 'preact/hooks';
 import type { Datos, Linea, Venta } from '../lib/registro.ts';
-import { hoy, numeroFactura, round2, sumarDias, totales } from '../lib/registro.ts';
+import { hoy, mejorDescuento, numeroFactura, round2, sumarDias, totales } from '../lib/registro.ts';
 import { eur, norm, parseNum } from '../lib/format.ts';
 import { btn, campo, error as errorCls, etiqueta, filaMovil, gridForm, h2, icon, input, muted, panel, panelHead, span2, span4, table, tableWrap, tdInput, th, thR } from './ui.ts';
 
@@ -13,19 +13,25 @@ const pctInput = 'w-[3.6rem] rounded-md border border-line-2 bg-field px-1.5 py-
 // el texto de ayuda solo hace falta en móvil, donde no hay cabecera de tabla
 const numero = 'text-right tabular-nums placeholder:text-transparent movil:placeholder:text-muted';
 const ancho = 'min-w-65 movil:w-full movil:min-w-0';
+// etiqueta del descuento de una línea; al pulsarla se quita o se vuelve a poner
+const chip = 'mt-1.5 inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold';
 
 interface LineaForm {
   producto: string;
   cantidad: string;
   precio: string;
   precioManual: boolean;
+  /** el descuento que le tocaría se ha quitado a mano en esta línea */
+  sinDto: boolean;
 }
-const vacia = (): LineaForm => ({ producto: '', cantidad: '', precio: '', precioManual: false });
+const vacia = (): LineaForm => ({ producto: '', cantidad: '', precio: '', precioManual: false, sinDto: false });
 
 export interface NuevaVentaResult {
   venta: Venta;
   lineas: Linea[];
   notas: string;
+  /** descuentos aplicados (posición en `Datos.descuentos`): cada uno gasta un uso al registrar */
+  usados: number[];
 }
 
 interface Props {
@@ -53,13 +59,20 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
   const calculadas = lineas.map(l => {
     const cantidad = parseNum(l.cantidad);
     const precio = parseNum(l.precio);
-    const importe = cantidad !== null && precio !== null ? round2(cantidad * precio) : null;
-    return { ...l, cantidad, precio, importe };
+    // el descuento que le toca a la línea, aunque se haya quitado a mano (para poder volver a ponerlo)
+    const dto = l.producto.trim() && cantidad !== null && precio !== null
+      ? mejorDescuento(datos.descuentos, { producto: l.producto, cantidad, precio, cliente, fecha })
+      : null;
+    const aplicado = dto && !l.sinDto ? dto : null;
+    const final = aplicado ? aplicado.precio : precio;
+    const importe = cantidad !== null && final !== null ? round2(cantidad * final) : null;
+    return { ...l, cantidad, precio, importe, dto, aplicado, final };
   });
   const validas = calculadas.filter(l => l.producto.trim() && l.importe !== null);
   const iva = (parseNum(ivaPct) ?? 0) / 100;
   const irpf = (parseNum(irpfPct) ?? 0) / 100;
   const tot = totales(validas.map(l => ({ importe: l.importe! })), iva, irpf);
+  const ahorro = round2(validas.reduce((a, l) => a + (l.aplicado ? l.cantidad! * l.precio! - l.importe! : 0), 0));
 
   function setLinea(i: number, patch: Partial<LineaForm>) {
     setLineas(ls => {
@@ -90,9 +103,11 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
       base: tot.base, ivaPct: iva, iva: tot.iva, irpfPct: irpf, irpf: tot.irpf, total: tot.total, pdf: '',
     };
     const ls: Linea[] = validas.map(l => ({
-      num, fecha, cliente: c.nombre, producto: l.producto.trim(), cantidad: l.cantidad!, precio: l.precio!, importe: l.importe!,
+      num, fecha, cliente: c.nombre, producto: l.producto.trim(), cantidad: l.cantidad!, precio: l.final!, importe: l.importe!,
+      ...(l.aplicado ? { descuento: l.aplicado.etiqueta, precioBase: l.precio! } : {}),
     }));
-    return { venta, lineas: ls, notas };
+    const usados = [...new Set(validas.flatMap(l => (l.aplicado ? [l.aplicado.indice] : [])))];
+    return { venta, lineas: ls, notas, usados };
   }
   function fail(msg: string): null {
     setError(msg);
@@ -149,8 +164,17 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
             {calculadas.map((l, i) => (
               // móvil: producto arriba a todo el ancho; debajo cantidad, precio, importe y quitar
               <tr key={i} class={`${filaMovil} movil:grid-cols-[1fr_1fr_auto_auto] movil:items-center`}>
-                <td class={`${tdInput} movil:col-span-4`}><input class={input} list="dl-productos" value={l.producto} placeholder="Producto…"
-                  onInput={e => setLinea(i, { producto: e.currentTarget.value })} /></td>
+                <td class={`${tdInput} movil:col-span-4`}>
+                  <input class={input} list="dl-productos" value={l.producto} placeholder="Producto…"
+                    onInput={e => setLinea(i, { producto: e.currentTarget.value })} />
+                  {l.dto && (
+                    <button class={`${chip} ${l.aplicado ? 'bg-primary text-ink' : 'border border-dashed border-line-2 text-muted line-through'}`}
+                      title={l.aplicado ? 'Quitar el descuento de esta línea' : 'Volver a aplicar el descuento'}
+                      onClick={() => setLinea(i, { sinDto: !l.sinDto })}>
+                      {l.dto.etiqueta}{l.aplicado && <span class="font-normal">· antes {eur(l.cantidad! * l.precio!)}</span>}
+                    </button>
+                  )}
+                </td>
                 <td class={tdInput}><input class={`${input} ${numero}`} inputMode="decimal" placeholder="Cant." value={lineas[i].cantidad}
                   onInput={e => setLinea(i, { cantidad: e.currentTarget.value })} /></td>
                 <td class={tdInput}><input class={`${input} ${numero}`} inputMode="decimal" placeholder="Precio" value={lineas[i].precio}
@@ -167,6 +191,7 @@ export function NuevaVenta({ datos, onPreview, onRegistrar }: Props) {
 
       <div class="mt-5.5 flex flex-wrap-reverse items-end justify-between gap-6 movil:flex-wrap">
         <div class="ml-auto w-[min(380px,100%)]">
+          {ahorro > 0 && <div class={fila}><span class={filaLabel}>Descuentos</span><b>−{eur(ahorro)}</b></div>}
           <div class={fila}><span class={filaLabel}>Base imponible</span><b>{eur(tot.base)}</b></div>
           <div class={fila}>
             <span class={filaLabel}>IVA <input class={pctInput} inputMode="decimal" value={ivaPct} onInput={e => setIvaPct(e.currentTarget.value)} /> %</span>

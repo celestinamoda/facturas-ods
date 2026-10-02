@@ -34,6 +34,7 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 | `src/components/NuevaVenta.tsx` | Formulario de venta, líneas y totales |
 | `src/components/Ventas.tsx` | Listado con filtros y KPIs |
 | `src/components/TablaEditable.tsx` | Tabla genérica editable (Clientes y Productos) |
+| `src/components/Descuentos.tsx` | Página de descuentos: una ficha por descuento |
 | `src/components/TiendaForm.tsx` | Datos de la tienda (hoja Tienda) |
 | `src/components/Factura.tsx` | Factura que se ve en el modal y se imprime a PDF |
 | `src/components/ui.ts` | Cadenas de clases de Tailwind compartidas |
@@ -48,7 +49,8 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 | `public/icons/` | Iconos de la PWA (192, 512 y apple-touch 180): "C" caligráfica sobre `primary` |
 | `pwa/sw.js` | Plantilla del service worker, con los marcadores `__VERSION__` y `__FILES__` |
 | `pwa/integration.mjs` | Integración de Astro: al compilar escribe `dist/sw.js` con la lista de archivos |
-| `tests/ods.test.ts` | Test de ida y vuelta; depende del contenido de la plantilla |
+| `tests/ods.test.ts` | Test de ida y vuelta y de las reglas de descuento; depende del contenido de la plantilla |
+| `tests/registro-antiguo.ods` | Registro con el formato anterior a los descuentos (sin esa hoja); lo usa el test y debe estar en git |
 | `.github/workflows/deploy.yml` | Despliegue a GitHub Pages en cada push a `main` |
 
 ## Convenciones de estilo
@@ -68,7 +70,8 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   - Barra superior: logo, pestañas, "Guardar" y un menú "⋯" (lista `ACCIONES` en `App.tsx`) con
     abrir otro archivo, descargar copia y cerrar, a cualquier ancho. El nombre del archivo abierto
     solo se ve dentro de ese menú, por decisión del usuario: no volver a ponerlo en la barra.
-  - Pestañas: en tablet bajan a una fila propia; en móvil son una barra fija abajo con iconos.
+  - Pestañas: en tablet bajan a una fila propia; en móvil son una barra fija abajo con iconos y
+    texto corto (son seis: no cabe el largo).
   - Tablas: en móvil dejan de ser tabla (`table`, `td`, `tdInput`, `filaMovil` de `ui.ts`): se oculta
     la cabecera y cada fila es una tarjeta cuya rejilla define el componente en su `<tr>`. El título
     de columna se pinta con `tdLabel` + `data-label`. `TablaEditable` con `ancha` (Clientes) pasa a
@@ -94,6 +97,20 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   (ver `OdsDocument.toBytes` en `src/lib/ods.ts`).
 - La barra superior muestra `tienda.nombre` del archivo abierto: si el `.ods` del usuario lo tiene en
   mayúsculas, el logo sale en mayúsculas caligráficas.
+- **Descuentos** (reglas en `estadoDescuento` y `mejorDescuento` de `registro.ts`, cubiertas por el test):
+  - Cada descuento es para un producto (o todos si se deja vacío), en % o en euros por unidad, con
+    rango de fechas (extremos incluidos, según la fecha de la venta), límite de usos, cantidad
+    mínima, cliente concreto y un interruptor para pausarlo.
+  - Se aplican solos en Nueva venta: a cada línea, el que deja el precio más bajo; no se acumulan.
+    La etiqueta de la línea permite quitarlo o volver a ponerlo.
+  - Un uso = una factura. No hay contador: cada descuento guarda la lista de facturas en las que se
+    aplicó (`facturas`), así que borrar una factura devuelve el uso.
+  - En el `.ods`: hoja **Descuentos** (opcional; los registros antiguos no la tienen y se crea al
+    guardar el primero) y dos columnas más en Detalle ventas, I «DESCUENTO» y J «PRECIO SIN DTO.»,
+    que solo escribe la web. El precio de la línea (G) ya va con el descuento, para que cuadre con
+    el importe y con las fórmulas de LibreOffice. Las macros de LibreOffice no saben de descuentos.
+  - La hoja nueva se crea sin formato propio (anchos y fechas por defecto); solo copia los estilos de
+    título y cabecera de Productos. **No se ha abierto en LibreOffice para ver cómo queda.**
 - **La factura no muestra vencimiento ni datos de pago** (IBAN, titular, concepto): el usuario pidió
   quitarlos. Siguen existiendo en el `.ods` y en la pestaña Tienda (días de vencimiento, IBAN,
   titular) y `Venta.vencimiento` se sigue calculando y guardando; solo no se pintan. El bloque
@@ -144,6 +161,10 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
 - Diseño responsive: navegación inferior y menú de archivo en móvil, tablas como tarjetas, modal a
   pantalla completa. Revisado con capturas de todas las vistas a 320, 360, 390, 768 y 1280 px, sin
   desbordes ni errores de consola. Sin probar en un teléfono real (teclado, gestos, zona segura).
+- Página de **Descuentos** y su aplicación en Nueva venta y en la factura. Probado con el test
+  (reglas e ida y vuelta del `.ods`, incluido un registro antiguo) y con un recorrido en navegador
+  headless: crear, aplicar, quitar a mano, agotar el límite y recuperar el uso al borrar la factura.
+- En Nueva venta, al poner un producto la cantidad se rellena con 1.
 - Factura impresa igual en móvil y escritorio: el usuario la imprimió desde el móvil y salía distinta.
   Comprobado imprimiendo a PDF en navegador headless con emulación de móvil y de escritorio: mismo
   PDF, una página A4, con las bandas negras aunque los fondos estén desactivados. **Sin confirmar en
@@ -162,4 +183,5 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
 - Un archivo arrastrado a la web no obtiene acceso al disco (se trata como copia); se podría pedir el
   handle con `DataTransferItem.getAsFileSystemHandle()` en Chrome/Edge.
 - En la lista de Ventas en móvil no se muestran Base ni IVA (sí en la factura); en tablet, tampoco IVA.
-- No hay tests de interfaz; solo el de lectura/escritura del `.ods`.
+- No hay tests de interfaz; solo el de lectura/escritura del `.ods` y las reglas de descuento.
+- Descuentos: no hay códigos/cupones, ni descuento sobre el total de la factura, ni acumulación.

@@ -3,7 +3,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 Object.assign(globalThis, { DOMParser, XMLSerializer });
-const { abrir, guardar, numeroFactura, totales, sumarDias } = await import('../src/lib/registro.ts');
+const { abrir, guardar, numeroFactura, totales, sumarDias, estadoDescuento, mejorDescuento } = await import('../src/lib/registro.ts');
+import type { Descuento } from '../src/lib/registro.ts';
 
 const out = process.argv[2] ?? 'tests/salida.ods';
 const t0 = performance.now();
@@ -53,4 +54,64 @@ const third = await abrir(readFileSync(out));
 assert.deepEqual(third.datos.ventas.map(v => v.num), ['2026-001', '2026-003']);
 assert.equal(third.datos.lineas.length, 4);
 assert.equal(third.datos.clientes.length, 2);
+
+// ---------------------------------------------------------------- descuentos
+assert.equal(datos.descuentos.length, 0);
+const dto = (x: Partial<Descuento>): Descuento => ({
+  nombre: 'Rebajas', producto: 'Producto web', tipo: '%', valor: 10, desde: '2026-10-01', hasta: '2026-10-31',
+  maxUsos: null, minCantidad: null, cliente: '', activo: true, facturas: [], ...x,
+});
+const linea = { producto: 'producto WEB', cantidad: 1, precio: 9.95, cliente: 'Nuevo Cliente SL', fecha: '2026-10-02' };
+
+assert.deepEqual(mejorDescuento([dto({})], linea), { indice: 0, etiqueta: 'Rebajas (−10 %)', precio: 8.96 });
+assert.equal(mejorDescuento([dto({})], { ...linea, producto: 'Otro' }), null);
+assert.equal(mejorDescuento([dto({ producto: '' })], { ...linea, producto: 'Otro' })?.precio, 8.96); // sin producto = todos
+// fechas: ambos extremos incluidos
+assert.equal(mejorDescuento([dto({})], { ...linea, fecha: '2026-09-30' }), null);
+assert.equal(mejorDescuento([dto({})], { ...linea, fecha: '2026-10-01' })?.precio, 8.96);
+assert.equal(mejorDescuento([dto({})], { ...linea, fecha: '2026-10-31' })?.precio, 8.96);
+assert.equal(mejorDescuento([dto({})], { ...linea, fecha: '2026-11-01' }), null);
+assert.equal(estadoDescuento(dto({}), '2026-09-30'), 'programado');
+assert.equal(estadoDescuento(dto({}), '2026-11-01'), 'caducado');
+// límite de usos
+assert.equal(mejorDescuento([dto({ maxUsos: 2, facturas: ['2026-001'] })], linea)?.precio, 8.96);
+assert.equal(mejorDescuento([dto({ maxUsos: 2, facturas: ['2026-001', '2026-003'] })], linea), null);
+assert.equal(estadoDescuento(dto({ maxUsos: 2, facturas: ['2026-001', '2026-003'] }), '2026-10-02'), 'agotado');
+// pausado, cantidad mínima y cliente
+assert.equal(mejorDescuento([dto({ activo: false })], linea), null);
+assert.equal(mejorDescuento([dto({ minCantidad: 3 })], linea), null);
+assert.equal(mejorDescuento([dto({ minCantidad: 3 })], { ...linea, cantidad: 3 })?.precio, 8.96);
+assert.equal(mejorDescuento([dto({ cliente: 'Otro cliente' })], linea), null);
+assert.equal(mejorDescuento([dto({ cliente: 'nuevo cliente sl' })], linea)?.precio, 8.96);
+// importe fijo, sin bajar de cero, y gana el que deja el precio más bajo
+assert.deepEqual(mejorDescuento([dto({ tipo: '€', valor: 2, nombre: '' })], linea), { indice: 0, etiqueta: 'Descuento (−2,00 €)', precio: 7.95 }); // Intl separa el € con un espacio duro
+assert.equal(mejorDescuento([dto({ tipo: '€', valor: 50 })], linea)?.precio, 0);
+assert.equal(mejorDescuento([dto({}), dto({ tipo: '€', valor: 2 }), dto({ valor: 5 })], linea)?.indice, 1);
+
+// ida y vuelta: la hoja Descuentos y las columnas de descuento de Detalle ventas
+third.datos.descuentos.push(dto({ maxUsos: 5, minCantidad: 2, cliente: 'Nuevo Cliente SL', facturas: ['2026-001', '2026-003'] }), dto({ nombre: 'Pausado', tipo: '€', valor: 1.5, desde: '', hasta: '', activo: false }));
+third.datos.lineas[1] = { ...third.datos.lineas[1], precio: 8.96, importe: 26.88, descuento: 'Rebajas (−10 %)', precioBase: 9.95 };
+writeFileSync(out, await guardar(third.registro, third.datos));
+const fourth = await abrir(readFileSync(out));
+assert.deepEqual(fourth.datos.descuentos, third.datos.descuentos);
+assert.equal(fourth.datos.lineas[1].descuento, 'Rebajas (−10 %)');
+assert.equal(fourth.datos.lineas[1].precioBase, 9.95);
+assert.equal(fourth.datos.lineas[0].descuento, '');
+assert.equal(fourth.datos.lineas[0].precioBase, null);
+// borrar un descuento no deja restos
+fourth.datos.descuentos.splice(0, 1);
+writeFileSync(out, await guardar(fourth.registro, fourth.datos));
+assert.deepEqual((await abrir(readFileSync(out))).datos.descuentos.map(x => x.nombre), ['Pausado']);
+
+// un registro hecho antes de que existieran los descuentos: se abre igual y la hoja se crea al guardar el primero
+const viejo = await abrir(readFileSync('tests/registro-antiguo.ods'));
+assert.equal(viejo.registro.ods.sheetNames().includes('Descuentos'), false);
+assert.equal(viejo.datos.descuentos.length, 0);
+await guardar(viejo.registro, viejo.datos);
+assert.equal(viejo.registro.ods.sheetNames().includes('Descuentos'), false);
+viejo.datos.descuentos.push(dto({}));
+writeFileSync(out, await guardar(viejo.registro, viejo.datos));
+const nuevo = await abrir(readFileSync(out));
+assert.deepEqual(nuevo.datos.descuentos, [dto({})]);
+assert.equal(nuevo.datos.clientes.length, 2);
 console.log(`ok · ${Math.round(performance.now() - t0)} ms`);

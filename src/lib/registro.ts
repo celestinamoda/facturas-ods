@@ -2,6 +2,7 @@
 // Mapea el registro de ventas (.ods) a objetos y de vuelta. La estructura es la del libro generado:
 // cabecera de tabla en la fila 5, datos desde la fila 6, columna B en adelante.
 import { OdsDate, OdsDocument, type CellValue, type OdsSheet } from './ods.ts';
+import { eur, norm, numero } from './format.ts';
 
 export interface Tienda {
   nombre: string;
@@ -64,8 +65,33 @@ export interface Linea {
   cliente: string;
   producto: string;
   cantidad: number;
+  /** precio por unidad ya con el descuento aplicado, si lo hay */
   precio: number;
   importe: number;
+  /** descuento aplicado, tal como sale en la factura: «Rebajas (−10 %)» */
+  descuento?: string;
+  /** precio por unidad antes del descuento */
+  precioBase?: number | null;
+}
+
+export interface Descuento {
+  nombre: string;
+  /** vacío = todos los productos */
+  producto: string;
+  tipo: '%' | '€';
+  /** porcentaje (10 = 10 %) o euros por unidad, según `tipo` */
+  valor: number;
+  /** YYYY-MM-DD, ambos incluidos; vacío = sin límite */
+  desde: string;
+  hasta: string;
+  /** en cuántas facturas se puede usar; null = sin límite */
+  maxUsos: number | null;
+  minCantidad: number | null;
+  /** vacío = cualquier cliente */
+  cliente: string;
+  activo: boolean;
+  /** facturas en las que se ha aplicado: su número es el de usos */
+  facturas: string[];
 }
 
 export interface Datos {
@@ -74,11 +100,16 @@ export interface Datos {
   productos: Producto[];
   ventas: Venta[];
   lineas: Linea[];
+  descuentos: Descuento[];
 }
 
 export const HOJAS = { ventas: 'Ventas', detalle: 'Detalle ventas', clientes: 'Clientes', productos: 'Productos', tienda: 'Tienda' } as const;
+// La hoja de descuentos es opcional: los registros hechos antes de que existiera no la tienen,
+// y se crea al guardar el primer descuento.
+const HOJA_DESCUENTOS = 'Descuentos';
+const DESCUENTO_COLS = ['NOMBRE', 'PRODUCTO', 'TIPO', 'VALOR', 'DESDE', 'HASTA', 'LÍMITE DE USOS', 'CANT. MÍNIMA', 'CLIENTE', 'ACTIVO', 'USADO EN'];
 const TOP = 6;
-const CAP = { clientes: 300, productos: 300, ventas: 1000, lineas: 3000 } as const;
+const CAP = { clientes: 300, productos: 300, ventas: 1000, lineas: 3000, descuentos: 200 } as const;
 
 const TIENDA_LABELS: Record<string, keyof Tienda> = {
   'NOMBRE COMERCIAL': 'nombre',
@@ -163,19 +194,28 @@ export async function abrir(bytes: ArrayBuffer | Uint8Array): Promise<{ registro
       num: str(r[0]), fecha: date(r[1]), vencimiento: date(r[2]), cliente: str(r[3]), nif: str(r[4]), pago: str(r[5]),
       base: num(r[6]), ivaPct: num(r[7]), iva: num(r[8]), irpfPct: num(r[9]), irpf: num(r[10]), total: num(r[11]), pdf: str(r[12]),
     }));
-  const rl = rowsOf(ods.sheet(HOJAS.detalle), 7, CAP.lineas);
+  // las dos últimas columnas (descuento y precio sin descuento) las añade la web; pueden no estar
+  const rl = rowsOf(ods.sheet(HOJAS.detalle), 9, CAP.lineas);
   const lineas = rl.rows.map(
     (r): Linea => ({
       num: str(r[0]), fecha: date(r[1]), cliente: str(r[2]), producto: str(r[3]),
-      cantidad: num(r[4]), precio: num(r[5]), importe: num(r[6]),
+      cantidad: num(r[4]), precio: num(r[5]), importe: num(r[6]), descuento: str(r[7]), precioBase: numOrNull(r[8]),
+    }));
+  const rd = names.includes(HOJA_DESCUENTOS) ? rowsOf(ods.sheet(HOJA_DESCUENTOS), 11, CAP.descuentos) : { rows: [], span: 0 };
+  const descuentos = rd.rows.map(
+    (r): Descuento => ({
+      nombre: str(r[0]), producto: str(r[1]), tipo: str(r[2]) === '€' ? '€' : '%', valor: num(r[3]),
+      desde: date(r[4]), hasta: date(r[5]), maxUsos: numOrNull(r[6]), minCantidad: numOrNull(r[7]), cliente: str(r[8]),
+      activo: r[9] !== false && norm(str(r[9])) !== 'no',
+      facturas: str(r[10]).split(',').map(f => f.trim()).filter(Boolean),
     }));
 
   return {
     registro: {
       ods,
-      counts: { clientes: rc.span, productos: rp.span, ventas: rv.span, lineas: rl.span },
+      counts: { clientes: rc.span, productos: rp.span, ventas: rv.span, lineas: rl.span, descuentos: rd.span },
     },
-    datos: { tienda: tienda as unknown as Tienda, clientes, productos, ventas, lineas },
+    datos: { tienda: tienda as unknown as Tienda, clientes, productos, ventas, lineas, descuentos },
   };
 }
 
@@ -199,8 +239,21 @@ export async function guardar(registro: Registro, datos: Datos): Promise<Uint8Ar
   writeTable(ods.sheet(HOJAS.ventas), datos.ventas.map(v =>
     [v.num, d(v.fecha), d(v.vencimiento), v.cliente, v.nif, v.pago, v.base, v.ivaPct, v.iva, v.irpfPct, v.irpf, v.total, v.pdf]),
   13, counts.ventas, CAP.ventas);
-  writeTable(ods.sheet(HOJAS.detalle), datos.lineas.map(l =>
-    [l.num, d(l.fecha), l.cliente, l.producto, l.cantidad, l.precio, l.importe]), 7, counts.lineas, CAP.lineas);
+  const dSheet = ods.sheet(HOJAS.detalle);
+  writeTable(dSheet, datos.lineas.map(l =>
+    [l.num, d(l.fecha), l.cliente, l.producto, l.cantidad, l.precio, l.importe, l.descuento ?? null, l.precioBase ?? null]), 9, counts.lineas, CAP.lineas);
+  if (datos.lineas.some(l => l.descuento) && dSheet.read(5, 9) === null) {
+    dSheet.writeRows(5, 9, [['DESCUENTO', 'PRECIO SIN DTO.']]);
+    dSheet.setStyle(5, 9, dSheet.styleOf(5, 8));
+    dSheet.setStyle(5, 10, dSheet.styleOf(5, 8));
+  }
+
+  const hayHoja = ods.sheetNames().includes(HOJA_DESCUENTOS);
+  if (hayHoja || datos.descuentos.length) {
+    writeTable(hayHoja ? ods.sheet(HOJA_DESCUENTOS) : crearHojaDescuentos(ods), datos.descuentos.map(x =>
+      [x.nombre, x.producto, x.tipo, x.valor, d(x.desde), d(x.hasta), x.maxUsos, x.minCantidad, x.cliente, x.activo ? 'Sí' : 'No', x.facturas.join(', ')]),
+    11, counts.descuentos, CAP.descuentos);
+  }
 
   // resumen de Ventas (J3, L3, M3): LibreOffice no siempre recalcula los rangos al abrir
   const vSheet = ods.sheet(HOJAS.ventas);
@@ -211,9 +264,21 @@ export async function guardar(registro: Registro, datos: Datos): Promise<Uint8Ar
   const bytes = await ods.toBytes();
   registro.counts = {
     clientes: datos.clientes.length, productos: datos.productos.length,
-    ventas: datos.ventas.length, lineas: datos.lineas.length,
+    ventas: datos.ventas.length, lineas: datos.lineas.length, descuentos: datos.descuentos.length,
   };
   return bytes;
+}
+
+/** Hoja «Descuentos» con el mismo esquema que las demás: título en B2, cabecera en la fila 5. */
+export function crearHojaDescuentos(ods: OdsDocument): OdsSheet {
+  const sh = ods.addSheet(HOJA_DESCUENTOS, DESCUENTO_COLS.length + 1);
+  sh.write(2, 2, 'DESCUENTOS');
+  sh.write(3, 2, 'Un descuento por fila. Se gestionan desde la web; «USADO EN» lleva las facturas en las que se aplicó.');
+  sh.writeRows(5, 2, [DESCUENTO_COLS]);
+  const ref = ods.sheet(HOJAS.productos);
+  sh.setStyle(2, 2, ref.styleOf(2, 2));
+  DESCUENTO_COLS.forEach((_, i) => sh.setStyle(5, 2 + i, ref.styleOf(5, 2)));
+  return sh;
 }
 
 // ---------------------------------------------------------------- cálculos
@@ -247,4 +312,45 @@ export function totales(lineas: ReadonlyArray<{ importe: number }>, ivaPct: numb
   const iva = round2(base * ivaPct);
   const irpf = -round2(base * irpfPct);
   return { base, iva, irpf, total: round2(base + iva + irpf) };
+}
+
+// ---------------------------------------------------------------- descuentos
+
+export type EstadoDescuento = 'activo' | 'pausado' | 'agotado' | 'caducado' | 'programado';
+
+/** Estado de un descuento en una fecha (YYYY-MM-DD). Solo «activo» se aplica. */
+export function estadoDescuento(x: Descuento, fecha: string): EstadoDescuento {
+  if (!x.activo) return 'pausado';
+  if (x.maxUsos !== null && x.facturas.length >= x.maxUsos) return 'agotado';
+  if (x.hasta && fecha > x.hasta) return 'caducado';
+  if (x.desde && fecha < x.desde) return 'programado';
+  return 'activo';
+}
+
+export const etiquetaDescuento = (x: Descuento): string =>
+  `${x.nombre || 'Descuento'} (−${x.tipo === '%' ? `${numero(x.valor)} %` : eur(x.valor)})`;
+
+export interface DescuentoAplicado {
+  /** posición en `Datos.descuentos` */
+  indice: number;
+  etiqueta: string;
+  /** precio por unidad con el descuento */
+  precio: number;
+}
+
+/** El descuento aplicable que deja el precio más bajo para una línea de venta, o null. */
+export function mejorDescuento(
+  descuentos: ReadonlyArray<Descuento>,
+  l: { producto: string; cantidad: number; precio: number; cliente: string; fecha: string },
+): DescuentoAplicado | null {
+  let mejor: DescuentoAplicado | null = null;
+  for (const [indice, x] of descuentos.entries()) {
+    if (x.valor <= 0 || estadoDescuento(x, l.fecha) !== 'activo') continue;
+    if (x.producto && norm(x.producto) !== norm(l.producto)) continue;
+    if (x.cliente && norm(x.cliente) !== norm(l.cliente)) continue;
+    if (l.cantidad < (x.minCantidad ?? 0)) continue;
+    const precio = Math.max(0, round2(x.tipo === '%' ? l.precio * (1 - x.valor / 100) : l.precio - x.valor));
+    if (precio < l.precio && (!mejor || precio < mejor.precio)) mejor = { indice, etiqueta: etiquetaDescuento(x), precio };
+  }
+  return mejor;
 }
