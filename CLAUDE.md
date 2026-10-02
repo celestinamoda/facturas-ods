@@ -94,6 +94,10 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   (ver `OdsDocument.toBytes` en `src/lib/ods.ts`).
 - La barra superior muestra `tienda.nombre` del archivo abierto: si el `.ods` del usuario lo tiene en
   mayúsculas, el logo sale en mayúsculas caligráficas.
+- **La factura no muestra vencimiento ni datos de pago** (IBAN, titular, concepto): el usuario pidió
+  quitarlos. Siguen existiendo en el `.ods` y en la pestaña Tienda (días de vencimiento, IBAN,
+  titular) y `Venta.vencimiento` se sigue calculando y guardando; solo no se pintan. El bloque
+  NOTAS solo aparece si hay notas.
 - **La factura impresa debe salir igual desde cualquier dispositivo**, en A4:
   - `tablet:` y `movil:` son solo de pantalla (`@media screen and …`). Al imprimir desde un móvil
     la página mide como su pantalla y, si no, la factura saldría con el diseño de móvil.

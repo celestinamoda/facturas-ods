@@ -53,7 +53,6 @@ export function Factura({ tienda: t, venta: v, lineas, cliente: c, notas, borrad
         <dl class="grid grid-cols-[auto_auto] content-start gap-x-5.5 gap-y-0.75">
           <dt class={dt}>Nº FACTURA</dt><dd class={dd}>{v.num}</dd>
           <dt class={dt}>FECHA</dt><dd class={dd}>{fecha(v.fecha)}</dd>
-          <dt class={dt}>VENCIMIENTO</dt><dd class={dd}>{fecha(v.vencimiento)}</dd>
           <dt class={dt}>FORMA DE PAGO</dt><dd class={dd}>{v.pago}</dd>
         </dl>
       </section>
@@ -86,18 +85,12 @@ export function Factura({ tienda: t, venta: v, lineas, cliente: c, notas, borrad
         </div>
       </section>
 
-      <section class="mt-7.5 grid grid-cols-2 gap-6 border-t border-line-2 pt-3.5 text-[#333]">
-        <div>
-          <p class={label}>DATOS DE PAGO</p>
-          {t.iban && <p>IBAN&nbsp;&nbsp;{t.iban}</p>}
-          {t.titular && <p>Titular&nbsp;&nbsp;{t.titular}</p>}
-          <p>Concepto&nbsp;&nbsp;Factura {v.num}</p>
-        </div>
-        <div>
+      {notas && (
+        <section class="mt-7.5 border-t border-line-2 pt-3.5 text-[#333]">
           <p class={label}>NOTAS</p>
           <p>{notas}</p>
-        </div>
-      </section>
+        </section>
+      )}
       <p class="mt-6.5 text-[12px] font-bold">{t.gracias}</p>
       <footer class={`${gris} mt-10 border-t border-line-2 pt-2 text-center text-[8px]`}>{join(' · ', t.nombre, t.nif && `NIF ${t.nif}`, t.email, t.tel, t.web)}</footer>
     </article>
