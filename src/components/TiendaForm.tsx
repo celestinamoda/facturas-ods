@@ -27,6 +27,10 @@ const GRUPOS: { titulo: string; campos: Campo[] }[] = [
     { key: 'envioEmail', label: 'Email al que se envían', ancho: 'full',
       ayuda: 'Se pone en «Para» al enviar facturas desde Ventas. Vacío: el email de cada cliente. Varios, separados por comas.' },
   ] },
+  { titulo: 'Copias de seguridad', campos: [
+    { key: 'copiaEmail', label: 'Email al que se envían', ancho: 'full',
+      ayuda: 'Se pone en «Para» al enviar una copia de seguridad del archivo. Vacío: el email de la tienda.' },
+  ] },
   { titulo: 'Pie de factura', campos: [{ key: 'gracias', label: 'Mensaje final', ancho: 'full' }] },
 ];
 

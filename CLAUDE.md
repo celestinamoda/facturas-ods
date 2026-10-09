@@ -33,7 +33,8 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 | `src/components/App.tsx` | Estado global (sesión, datos, pestaña, modal), barra superior, abrir/guardar, imprimir |
 | `src/components/NuevaVenta.tsx` | Formulario de venta, líneas y totales |
 | `src/components/Ventas.tsx` | Listado con filtros, KPIs y selección de facturas para enviar |
-| `src/components/EnviarFacturas.tsx` | Modal de envío por correo de las facturas seleccionadas |
+| `src/components/ModalCorreo.tsx` | Modal común de envío por correo (compartir o mailto + descarga) |
+| `src/components/EnviarFacturas.tsx` | Prepara los PDF de las facturas seleccionadas y abre `ModalCorreo` |
 | `src/components/Fichas.tsx` | Listado genérico con edición en modal (ahora solo lo usa Clientes) |
 | `src/components/Productos.tsx` | Listado de productos; el modal incluye sus variedades |
 | `src/components/ModalFormulario.tsx` | Modal de formulario común a Fichas y Descuentos |
@@ -73,7 +74,7 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   abajo. Impresión con `print:`.
 - **Responsive**:
   - Barra superior: logo, pestañas, "Guardar" y un menú "⋯" (lista `ACCIONES` en `App.tsx`) con
-    abrir otro archivo, descargar copia y cerrar, a cualquier ancho. El nombre del archivo abierto
+    abrir otro archivo, descargar copia, copia de seguridad por correo y cerrar, a cualquier ancho. El nombre del archivo abierto
     solo se ve dentro de ese menú, por decisión del usuario: no volver a ponerlo en la barra.
   - Pestañas: en tablet bajan a una fila propia; en móvil son una barra fija abajo con iconos y
     texto corto (son seis: no cabe el largo).
@@ -205,6 +206,23 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
     con `windowWidth: 1280` para que desde el móvil salga el diseño de A4 y no el de móvil. Se usa
     `html2canvas-pro` porque `html2canvas` no entiende los colores oklch/color-mix de Tailwind 4. No hay
     jsPDF: `pdf.ts` escribe un PDF mínimo de una página. `pdf.ts` se carga con `import()` (chunk aparte).
+- **Copia de seguridad por correo** (menú «⋯» y aviso bajo la barra), con el mismo `ModalCorreo`:
+  - Adjunta el `.ods` completo, con los cambios sin guardar, como «<nombre> (copia AAAA-MM-DD).ods».
+    «Para» es el de Tienda › Copias de seguridad (`Tienda.copiaEmail`, fila «EMAIL PARA COPIAS DE
+    SEGURIDAD»); si está vacío, el email de la tienda (salvo el de relleno «[…]»). Nunca el de facturas.
+  - Chrome/Edge (Windows y Android) no dejan compartir `.ods` (no está en su lista de tipos; Safari sí) y
+    **`canShare` no lo detecta**: `share` falla con «Permission denied» (`NotAllowedError`). El usuario pidió
+    dejar los dos botones igualmente, como en las facturas: si se rechaza, `ModalCorreo` lo explica y remite
+    a «Descargar … y abrir el correo». Se le ofreció compartir un PDF con el `.ods` dentro y no lo quiso.
+    El portapapeles se escribe sin `await` antes de `share`, para no gastar el permiso del clic.
+  - Fecha de la última copia en `Tienda.copia` (ISO local, `2026-10-09T19:55`), fila «ÚLTIMA COPIA DE
+    SEGURIDAD» de la hoja Tienda (fila de la web, como el email de envío: `FILAS_WEB` en `registro.ts`).
+    Las filas de la web que comparten bloque («COPIA DE SEGURIDAD») van juntas: la que se añade después
+    entra debajo de la última del bloque si detrás queda una fila libre; si no, se abre otro bloque al final.
+    Se apunta al pulsar compartir o abrir el correo (no se puede saber si se envió), deja el archivo
+    con cambios y hay que «Guardar» para que se quede. El archivo enviado ya lleva su propia fecha.
+  - Aviso (`DIAS_AVISO_COPIA` = 60) si nunca se ha hecho copia o hace 60 días o más. Se puede ocultar con
+    «×» hasta que se vuelva a abrir un archivo.
 - **La factura no muestra vencimiento ni datos de pago** (IBAN, titular, concepto): el usuario pidió
   quitarlos. Siguen existiendo en el `.ods` y en la pestaña Tienda (días de vencimiento, IBAN,
   titular) y `Venta.vencimiento` se sigue calculando y guardando; solo no se pintan. El bloque
@@ -282,6 +300,10 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
   pedir permiso (botón "Continuar con…"), que necesita un clic real y el selector de archivos.
 
 ## Pendiente / ideas
+
+- Copia de seguridad (2026-10-09): probada en navegador headless (aviso a 71 y a 10 días, sin copia,
+  descarga + mailto, share simulado en móvil, y que el `.ods` descargado se abre con su fecha y sus ventas).
+  Sin probar con Outlook real ni en un teléfono. «Descargar una copia» no cuenta como copia de seguridad.
 
 - Envío por correo (2026-10-09): probado en navegador headless (selección, PDF desde escritorio y móvil,
   mailto, y `share` simulado). Compartir real probado por el usuario en Windows con Outlook (llega el PDF y el

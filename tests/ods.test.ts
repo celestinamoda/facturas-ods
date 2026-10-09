@@ -183,4 +183,28 @@ assert.deepEqual(filasTienda[36], ['EMAIL PARA ENVIAR FACTURAS', 'gestoria@ejemp
 releido.datos.tienda.envioEmail = '';
 writeFileSync(out, await guardar(releido.registro, releido.datos));
 assert.equal((await abrir(readFileSync(out))).datos.tienda.envioEmail, '');
+
+// fecha de la última copia de seguridad: otra fila de la web, en su bloque debajo de la del email
+const conCopia = await abrir(readFileSync(out));
+assert.equal(conCopia.datos.tienda.copia, '');
+conCopia.datos.tienda.copia = '2026-10-09T19:55';
+writeFileSync(out, await guardar(conCopia.registro, conCopia.datos));
+const conCopia2 = await abrir(readFileSync(out));
+assert.equal(conCopia2.datos.tienda.copia, '2026-10-09T19:55');
+const filasCopia = conCopia2.registro.ods.sheet('Tienda').readRows(1, 2, 2, 80).map(r => r.map(v => (v === null ? null : String(v))));
+assert.deepEqual(filasCopia.slice(0, 34), antes.slice(0, 34));
+assert.deepEqual(filasCopia[36], ['EMAIL PARA ENVIAR FACTURAS', null]);
+assert.deepEqual(filasCopia[38], ['COPIA DE SEGURIDAD', null]);
+assert.deepEqual(filasCopia[39], ['ÚLTIMA COPIA DE SEGURIDAD', '2026-10-09T19:55']);
+// el email de las copias entra en ese mismo bloque, debajo, sin crear otro
+assert.equal(conCopia2.datos.tienda.copiaEmail, '');
+conCopia2.datos.tienda.copiaEmail = 'yo@celestina.es';
+writeFileSync(out, await guardar(conCopia2.registro, conCopia2.datos));
+const conCopia3 = await abrir(readFileSync(out));
+assert.equal(conCopia3.datos.tienda.copiaEmail, 'yo@celestina.es');
+assert.equal(conCopia3.datos.tienda.copia, '2026-10-09T19:55');
+const filasCopia3 = conCopia3.registro.ods.sheet('Tienda').readRows(1, 2, 2, 80).map(r => r.map(v => (v === null ? null : String(v))));
+assert.deepEqual(filasCopia3.slice(0, 40), filasCopia.slice(0, 40));
+assert.deepEqual(filasCopia3[40], ['EMAIL PARA COPIAS DE SEGURIDAD', 'yo@celestina.es']);
+assert.equal(filasCopia3.filter(r => r[0] === 'COPIA DE SEGURIDAD').length, 1);
 console.log(`ok · ${Math.round(performance.now() - t0)} ms`);

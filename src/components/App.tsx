@@ -10,6 +10,8 @@ import { Fichas } from './Fichas.tsx';
 import { Productos } from './Productos.tsx';
 import { TiendaForm } from './TiendaForm.tsx';
 import { Descuentos } from './Descuentos.tsx';
+import { ModalCorreo } from './ModalCorreo.tsx';
+import { fecha } from '../lib/format.ts';
 import { btn, error as errorCls, iconBase, muted } from './ui.ts';
 
 type Tab = 'venta' | 'ventas' | 'clientes' | 'productos' | 'descuentos' | 'tienda';
@@ -23,7 +25,20 @@ const TABS: [Tab, string, string, string][] = [
   ['tienda', 'Tienda', 'Tienda', 'M4 10v10h16V10M3 10l2-6h14l2 6M3 10h18M10 20v-6h4v6'],
 ];
 // acciones de archivo del menú «⋯» de la barra superior
-const ACCIONES = ['Abrir otro archivo', 'Descargar una copia', 'Cerrar el archivo'];
+const ACCIONES = ['Abrir otro archivo', 'Descargar una copia', 'Copia de seguridad por correo', 'Cerrar el archivo'];
+// a partir de cuántos días sin copia de seguridad se avisa
+const DIAS_AVISO_COPIA = 60;
+const ODS_MIME = 'application/vnd.oasis.opendocument.spreadsheet';
+/** fecha y hora local en ISO, sin zona: 2026-10-09T19:55 */
+const ahoraLocal = (): string => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+const diasDesde = (iso: string): number => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+
+interface Copia {
+  /** fecha que se apunta si se envía (y que ya lleva dentro el propio archivo) */
+  cuando: string;
+  archivo: File | null;
+  fallo: string;
+}
 
 interface Sesion {
   registro: Registro;
@@ -51,6 +66,9 @@ export default function App() {
   const [inicio, setInicio] = useState(true);
   const [pendiente, setPendiente] = useState<Recuerdo | null>(null);
   const [menu, setMenu] = useState(false);
+  const [copia, setCopia] = useState<Copia | null>(null);
+  // el aviso de copia de seguridad se puede cerrar; vuelve a salir al abrir el archivo otra vez
+  const [sinAvisoCopia, setSinAvisoCopia] = useState(false);
 
   useEffect(() => {
     const h = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } };
@@ -88,6 +106,7 @@ export default function App() {
       setDirty(false);
       setTab('venta');
       setPendiente(null);
+      setSinAvisoCopia(false);
       if (recordarlo) recordar({ nombre: a.nombre, handle: a.handle, bytes: a.handle ? null : a.bytes });
     } catch (e) {
       setError((e as Error).message);
@@ -156,6 +175,26 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Prepara el .ods completo (con los cambios sin guardar) para mandarlo por correo como copia de seguridad. */
+  async function copiaSeguridad() {
+    if (!sesion || !datos) return;
+    const cuando = ahoraLocal();
+    setCopia({ cuando, archivo: null, fallo: '' });
+    try {
+      // la copia ya lleva dentro su propia fecha
+      const bytes = await guardar(sesion.registro, { ...datos, tienda: { ...datos.tienda, copia: cuando } });
+      const nombre = `${sesion.nombre.replace(/.ods$/i, '')} (copia ${cuando.slice(0, 10)}).ods`;
+      setCopia({ cuando, archivo: new File([bytes as Uint8Array<ArrayBuffer>], nombre, { type: ODS_MIME }), fallo: '' });
+    } catch (e) {
+      setCopia({ cuando, archivo: null, fallo: `No se pudo preparar la copia: ${(e as Error).message}` });
+    }
+  }
+
+  function copiaEnviada(cuando: string) {
+    cambiar(d => ({ ...d, tienda: { ...d.tienda, copia: cuando } }));
+    avisar('Copia de seguridad enviada. Guarda el archivo para que recuerde la fecha.');
   }
 
   const buscarCliente = (nombre: string): Cliente | undefined => (datos ? clienteDe(datos, nombre) : undefined);
@@ -246,7 +285,12 @@ export default function App() {
 
   // ------------------------------------------------------------ app
   // mismo orden que ACCIONES
-  const acciones = [async () => cargar(await elegirArchivo()), () => guardarArchivo(true), cerrar];
+  const acciones = [async () => cargar(await elegirArchivo()), () => guardarArchivo(true), copiaSeguridad, cerrar];
+  const diasCopia = datos.tienda.copia ? diasDesde(datos.tienda.copia) : null;
+  const avisoCopia = !sinAvisoCopia && (diasCopia === null || diasCopia >= DIAS_AVISO_COPIA);
+  // el de las copias (pestaña Tienda); si no hay, el de la tienda, salvo el de relleno de la plantilla ([email@dominio.com])
+  const emailCopia = datos.tienda.copiaEmail.trim();
+  const emailTienda = datos.tienda.email.trim().startsWith('[') ? '' : datos.tienda.email.trim();
   return (
     <div>
       <header class="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center gap-4 bg-primary px-5 py-2.5 text-ink tablet:grid-cols-[1fr_auto] movil:gap-2 movil:px-3 print:hidden">
@@ -272,7 +316,10 @@ export default function App() {
               <>
                 <div class="fixed inset-0" onClick={() => setMenu(false)} />
                 <div class="absolute top-full right-0 mt-2 flex w-60 flex-col rounded-xl bg-paper p-1.5 shadow-[0_10px_30px_-10px_rgba(0,0,0,.5)]" role="menu">
-                  <p class="truncate border-b border-line px-3 pt-1.5 pb-2.5 text-xs text-muted" title={sesion.nombre}>{sesion.nombre}</p>
+                  <div class="border-b border-line px-3 pt-1.5 pb-2.5 text-xs text-muted">
+                    <p class="truncate" title={sesion.nombre}>{sesion.nombre}</p>
+                    <p>{datos.tienda.copia ? `Última copia de seguridad: ${fecha(datos.tienda.copia.slice(0, 10))}` : 'Sin copias de seguridad'}</p>
+                  </div>
                   {ACCIONES.map((texto, n) => (
                     <button key={texto} role="menuitem" class="cursor-pointer rounded-lg px-3 py-3 text-left text-[15px] hover:bg-field disabled:opacity-35"
                       disabled={busy} onClick={() => { setMenu(false); acciones[n](); }}>{texto}</button>
@@ -287,6 +334,18 @@ export default function App() {
       {error && (
         <div class="flex items-center justify-between bg-danger px-5 py-2.5 text-white print:hidden" role="alert">
           {error}<button class={`${iconBase} text-white`} onClick={() => setError('')}>×</button>
+        </div>
+      )}
+
+      {avisoCopia && (
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-primary/45 px-5 py-2.5 text-ink movil:px-3 print:hidden" role="alert">
+          <span class="mr-auto text-sm">
+            {diasCopia === null
+              ? 'Todavía no has hecho ninguna copia de seguridad de este archivo.'
+              : `Hace ${diasCopia} días de tu última copia de seguridad (${fecha(datos.tienda.copia.slice(0, 10))}).`}
+          </span>
+          <button class={btn('ghost', 'small')} onClick={copiaSeguridad}>Hacer copia por correo</button>
+          <button class={iconBase} title="Ocultar el aviso" onClick={() => setSinAvisoCopia(true)}>×</button>
         </div>
       )}
 
@@ -331,6 +390,23 @@ export default function App() {
             <div class="overflow-auto p-5.5 movil:p-2.5 print:overflow-visible print:p-0"><Factura {...modal} /></div>
           </div>
         </div>
+      )}
+
+      {copia && (
+        <ModalCorreo
+          titulo="Copia de seguridad por correo"
+          archivos={copia.archivo ? [copia.archivo] : []} total={1} adjuntos="el archivo" fallo={copia.fallo}
+          para={emailCopia || emailTienda}
+          notaPara={emailCopia ? 'El de las copias de seguridad, en la pestaña Tienda.'
+            : emailTienda ? 'El email de la tienda: la copia te la mandas a ti.'
+            : 'Pon tu email (o guárdalo en Tienda › Copias de seguridad).'}
+          asunto={`Copia de seguridad · ${sesion.nombre} · ${fecha(copia.cuando.slice(0, 10))}`}
+          mensaje={`Copia de seguridad del registro de ventas (${sesion.nombre}) del ${fecha(copia.cuando.slice(0, 10))} a las ${copia.cuando.slice(11)}.
+
+Para recuperarlo, descarga el archivo adjunto y ábrelo en la web o en LibreOffice.`}
+          onEnviado={() => copiaEnviada(copia.cuando)}
+          onCerrar={() => setCopia(null)}
+        />
       )}
 
       {toast && (
