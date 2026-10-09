@@ -1,7 +1,7 @@
 // src/components/Factura.tsx
-import type { Cliente, Linea, Tienda, Venta } from '../lib/registro.ts';
+import type { Cliente, Datos, Linea, Tienda, Venta } from '../lib/registro.ts';
 import { ivaIncluido, rebajaDeEtiqueta } from '../lib/registro.ts';
-import { eur, fecha, numero, pct } from '../lib/format.ts';
+import { eur, fecha, norm, numero, pct } from '../lib/format.ts';
 
 export interface FacturaData {
   tienda: Tienda;
@@ -12,7 +12,15 @@ export interface FacturaData {
   borrador?: boolean;
 }
 
-const join = (sep: string, ...parts: string[]): string => parts.filter(Boolean).join(sep);
+export const buscarCliente = (datos: Datos, nombre: string): Cliente | undefined =>
+  datos.clientes.find(c => norm(c.nombre) === norm(nombre));
+
+/** Factura de una venta ya registrada (las notas no se guardan en el .ods). */
+export const facturaDeVenta = (datos: Datos, v: Venta): FacturaData => ({
+  tienda: datos.tienda, venta: v, lineas: datos.lineas.filter(l => l.num === v.num), notas: '', cliente: buscarCliente(datos, v.cliente),
+});
+
+const join =(sep: string, ...parts: string[]): string => parts.filter(Boolean).join(sep);
 
 // La factura va siempre en blanco y negro: solo negro, blanco y los grises del tema, nunca `primary`.
 const gris = 'text-muted';

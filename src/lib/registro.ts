@@ -24,6 +24,8 @@ export interface Tienda {
   serie: string;
   sig: number;
   gracias: string;
+  /** a quién se mandan las facturas desde Ventas; vacío = al email de cada cliente */
+  envioEmail: string;
 }
 
 export interface Cliente {
@@ -135,6 +137,9 @@ const DESCUENTO_COLS = ['NOMBRE', 'PRODUCTO', 'TIPO', 'VALOR', 'DESDE', 'HASTA',
 const TOP = 6;
 const CAP = { clientes: 300, productos: 300, ventas: 1000, lineas: 3000, descuentos: 200, variedades: 1000 } as const;
 
+// La fila del email de envío solo la escribe la web: en las hojas de antes no existe y se añade al final
+// (sin mover ninguna celda de las que usan las fórmulas y macros) al guardar el primero.
+const ENVIO_LABEL = 'EMAIL PARA ENVIAR FACTURAS';
 const TIENDA_LABELS: Record<string, keyof Tienda> = {
   'NOMBRE COMERCIAL': 'nombre',
   'RAZÓN SOCIAL / TITULAR': 'razon',
@@ -155,6 +160,7 @@ const TIENDA_LABELS: Record<string, keyof Tienda> = {
   'SERIE (PREFIJO)': 'serie',
   'SIGUIENTE NÚMERO': 'sig',
   'MENSAJE FINAL': 'gracias',
+  [ENVIO_LABEL]: 'envioEmail',
 };
 const TIENDA_NUM: ReadonlyArray<keyof Tienda> = ['dias', 'iva', 'irpf', 'sig'];
 
@@ -255,11 +261,27 @@ export async function abrir(bytes: ArrayBuffer | Uint8Array): Promise<{ registro
   };
 }
 
+/** Añade al final de la hoja Tienda el bloque «ENVÍO DE FACTURAS», con el aspecto de «CONTACTO» y «EMAIL». */
+function anadirFilaEnvio(sh: OdsSheet): void {
+  const rotulos = sh.readRows(1, 2, 1, 80).map(([l]) => str(l).toUpperCase());
+  if (rotulos.includes(ENVIO_LABEL)) return;
+  const fila = (rotulo: string) => rotulos.indexOf(rotulo) + 1; // 0 si no está
+  const ultima = rotulos.reduce((u, l, i) => (l ? i + 1 : u), 0);
+  const titulo = ultima + 2;
+  const campo = titulo + 1;
+  sh.write(titulo, 2, 'ENVÍO DE FACTURAS');
+  sh.write(campo, 2, ENVIO_LABEL);
+  sh.write(campo, 4, 'Para enviar facturas desde la web; vacío = al email de cada cliente');
+  if (fila('CONTACTO')) sh.setStyle(titulo, 2, sh.styleOf(fila('CONTACTO'), 2));
+  if (fila('EMAIL')) for (const c of [2, 3, 4]) sh.setStyle(campo, c, sh.styleOf(fila('EMAIL'), c));
+}
+
 export async function guardar(registro: Registro, datos: Datos): Promise<Uint8Array> {
   const { ods, counts } = registro;
   ods.invalidateFormulas();
 
   const tSheet = ods.sheet(HOJAS.tienda);
+  if (datos.tienda.envioEmail) anadirFilaEnvio(tSheet);
   tSheet.readRows(1, 2, 1, 80).forEach(([label], i) => {
     const key = TIENDA_LABELS[str(label).toUpperCase()];
     if (key) {

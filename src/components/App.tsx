@@ -3,8 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { abrir, guardar, type Cliente, type Datos, type Registro, type Venta } from '../lib/registro.ts';
 import { descargar, desdeFile, elegirArchivo, escribir, guardarComo, puedeGuardarEncima, reabrir, type Archivo, type FileHandle } from '../lib/archivo.ts';
 import { olvidar, recordar, recuperar, type Recuerdo } from '../lib/recuerdo.ts';
-import { norm } from '../lib/format.ts';
-import { Factura, type FacturaData } from './Factura.tsx';
+import { Factura, buscarCliente as clienteDe, facturaDeVenta, type FacturaData } from './Factura.tsx';
 import { NuevaVenta, type NuevaVentaResult } from './NuevaVenta.tsx';
 import { Ventas } from './Ventas.tsx';
 import { Fichas } from './Fichas.tsx';
@@ -159,8 +158,7 @@ export default function App() {
     }
   }
 
-  const buscarCliente = (nombre: string): Cliente | undefined =>
-    datos?.clientes.find(c => norm(c.nombre) === norm(nombre));
+  const buscarCliente = (nombre: string): Cliente | undefined => (datos ? clienteDe(datos, nombre) : undefined);
 
   function abrirFactura(r: NuevaVentaResult, registrar: boolean) {
     if (!datos) return;
@@ -189,7 +187,7 @@ export default function App() {
 
   function verVenta(v: Venta) {
     if (!datos) return;
-    setModal({ tienda: datos.tienda, venta: v, lineas: datos.lineas.filter(l => l.num === v.num), notas: '', cliente: buscarCliente(v.cliente) });
+    setModal(facturaDeVenta(datos, v));
   }
 
   function eliminarVenta(v: Venta) {

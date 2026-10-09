@@ -23,6 +23,10 @@ const GRUPOS: { titulo: string; campos: Campo[] }[] = [
     { key: 'serie', label: 'Serie (prefijo)', ayuda: 'Cámbialo cada año: 2027-, 2028-…' },
     { key: 'sig', label: 'Siguiente número', tipo: 'num', ayuda: 'Sube solo al registrar' },
   ] },
+  { titulo: 'Envío de facturas', campos: [
+    { key: 'envioEmail', label: 'Email al que se envían', ancho: 'full',
+      ayuda: 'Se pone en «Para» al enviar facturas desde Ventas. Vacío: el email de cada cliente. Varios, separados por comas.' },
+  ] },
   { titulo: 'Pie de factura', campos: [{ key: 'gracias', label: 'Mensaje final', ancho: 'full' }] },
 ];
 

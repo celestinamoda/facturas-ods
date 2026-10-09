@@ -9,7 +9,7 @@ Web estática para hacer facturas de la tienda Celestina usando como base de dat
 registro de ventas. Todo ocurre en el navegador: el archivo se abre, se edita y se guarda en local,
 no hay servidor ni backend. El `.ods` debe seguir funcionando en LibreOffice con sus macros.
 
-Pila: Astro 7 (una sola página) + Preact + Tailwind 4 + JSZip. Node 22. Es una PWA instalable.
+Pila: Astro 7 (una sola página) + Preact + Tailwind 4 + JSZip + html2canvas-pro (PDF). Node 22. Es una PWA instalable.
 
 ## Comandos
 
@@ -32,20 +32,22 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 | `src/pages/index.astro` | Única página; monta `<App client:only="preact">` y pone las clases de `<body>` |
 | `src/components/App.tsx` | Estado global (sesión, datos, pestaña, modal), barra superior, abrir/guardar, imprimir |
 | `src/components/NuevaVenta.tsx` | Formulario de venta, líneas y totales |
-| `src/components/Ventas.tsx` | Listado con filtros y KPIs |
+| `src/components/Ventas.tsx` | Listado con filtros, KPIs y selección de facturas para enviar |
+| `src/components/EnviarFacturas.tsx` | Modal de envío por correo de las facturas seleccionadas |
 | `src/components/Fichas.tsx` | Listado genérico con edición en modal (ahora solo lo usa Clientes) |
 | `src/components/Productos.tsx` | Listado de productos; el modal incluye sus variedades |
 | `src/components/ModalFormulario.tsx` | Modal de formulario común a Fichas y Descuentos |
 | `src/components/Selector.tsx` | Desplegable propio (no `<select>`): clientes, productos, variedades, pago, tipo de descuento, mes |
 | `src/components/Descuentos.tsx` | Página de descuentos: listado con estado y resumen, y edición en modal |
 | `src/components/TiendaForm.tsx` | Datos de la tienda (hoja Tienda) |
-| `src/components/Factura.tsx` | Factura que se ve en el modal y se imprime a PDF |
+| `src/components/Factura.tsx` | Factura que se ve en el modal y se imprime a PDF; `facturaDeVenta` arma sus datos |
 | `src/components/ui.ts` | Cadenas de clases de Tailwind compartidas |
 | `src/styles/global.css` | Solo `@import 'tailwindcss'`, `@font-face`, `@theme` y `@page` |
 | `src/lib/ods.ts` | Lee/escribe celdas de `content.xml` sin tocar estilos, fórmulas ni macros |
 | `src/lib/registro.ts` | Mapea hojas ↔ datos y cálculos (totales, número de factura, vencimiento) |
 | `src/lib/archivo.ts` | Abrir/guardar con File System Access API, con descarga como alternativa |
 | `src/lib/recuerdo.ts` | Recuerda en IndexedDB el último archivo abierto para reabrirlo al volver |
+| `src/lib/pdf.ts` | Convierte la factura en un archivo PDF A4 (imagen JPEG en un PDF escrito a mano) |
 | `src/lib/format.ts` | Formato de euros, fechas, porcentajes; `norm` y `parseNum` |
 | `public/plantilla.ods` | Registro vacío con macros; es lo que carga "Empezar con uno vacío" |
 | `public/manifest.webmanifest` | Manifiesto de la PWA; rutas relativas para que valga con cualquier `base` |
@@ -184,6 +186,25 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
     el importe y con las fórmulas de LibreOffice. Las macros de LibreOffice no saben de descuentos.
   - La hoja nueva se crea sin formato propio (anchos y fechas por defecto); solo copia los estilos de
     título y cabecera de Productos. **No se ha abierto en LibreOffice para ver cómo queda.**
+- **Envío de facturas por correo** (Ventas: casillas, «Enviar por correo»). El usuario pidió mailto con
+  los PDF adjuntos, pero **mailto no admite adjuntos**; acordó con él este reparto:
+  - «Compartir» (`navigator.share` con archivos: móvil, Chrome/Edge en Windows) manda los PDF ya
+    adjuntos; ahí no se puede fijar el destinatario, y Outlook en Windows ignora también el asunto (probado
+    por el usuario). Por eso, al compartir, se copia el destinatario al portapapeles. Solo aparece si
+    `navigator.canShare` lo admite. Un `*|FNAME|*` en «Para» lo pone Outlook (contacto de un boletín), no la web.
+  - «Descargar PDF y abrir el correo»: descarga los PDF y abre mailto con destinatario (emails de las
+    fichas de cliente o el de Tienda), asunto y mensaje; los PDF se adjuntan a mano.
+  - Selección: casillas, la de cabecera (las visibles) y el desplegable «Seleccionar por mes o año»,
+    que suma todas las de ese mes o año sin mirar los filtros. La selección se pierde al cambiar de pestaña.
+  - **Email de envío** en Tienda (`Tienda.envioEmail`, «Envío de facturas»): si está, va en «Para» en vez
+    de los emails de los clientes. En el `.ods` es la fila «EMAIL PARA ENVIAR FACTURAS» de la hoja Tienda,
+    que la plantilla no tiene: al guardar el primero se añade dos filas por debajo de la última ocupada,
+    con los estilos de «CONTACTO» y «EMAIL», sin mover ninguna celda (el test lo comprueba).
+  - Los PDF se generan al abrir el modal, no en el clic: `share` exige que la llamada venga del clic.
+  - El PDF es una imagen de la factura (el texto no se selecciona), ~135 KB. Se pinta fuera de la vista
+    con `windowWidth: 1280` para que desde el móvil salga el diseño de A4 y no el de móvil. Se usa
+    `html2canvas-pro` porque `html2canvas` no entiende los colores oklch/color-mix de Tailwind 4. No hay
+    jsPDF: `pdf.ts` escribe un PDF mínimo de una página. `pdf.ts` se carga con `import()` (chunk aparte).
 - **La factura no muestra vencimiento ni datos de pago** (IBAN, titular, concepto): el usuario pidió
   quitarlos. Siguen existiendo en el `.ods` y en la pestaña Tienda (días de vencimiento, IBAN,
   titular) y `Venta.vencimiento` se sigue calculando y guardando; solo no se pintan. El bloque
@@ -261,6 +282,11 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
   pedir permiso (botón "Continuar con…"), que necesita un clic real y el selector de archivos.
 
 ## Pendiente / ideas
+
+- Envío por correo (2026-10-09): probado en navegador headless (selección, PDF desde escritorio y móvil,
+  mailto, y `share` simulado). Compartir real probado por el usuario en Windows con Outlook (llega el PDF y el
+  mensaje; no el asunto). **Sin probar en un teléfono.**
+  Si una factura no cupiese en un A4, se reduce para caber (no hay varias páginas).
 
 - `public/favicon.svg` sigue siendo negro; no se ha adaptado al color principal ni al icono de la PWA.
 - La PWA no avisa de que hay versión nueva ni se registra como app para abrir archivos `.ods`

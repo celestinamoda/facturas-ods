@@ -163,4 +163,24 @@ assert.equal(nuevo.registro.ods.sheetNames().includes('Variedades'), false);
 nuevo.datos.productos[0].variedades = [{ nombre: 'Rosa', precio: null, subvariedades: [{ nombre: 'M', precio: 9 }] }];
 writeFileSync(out, await guardar(nuevo.registro, nuevo.datos));
 assert.deepEqual((await abrir(readFileSync(out))).datos.productos[0].variedades, [{ nombre: 'Rosa', precio: null, subvariedades: [{ nombre: 'M', precio: 9 }] }]);
+
+// email de envío: la plantilla no tiene su fila; vacío no la crea y, al guardar uno, se añade al final sin mover nada
+const conEnvio = await abrir(readFileSync('public/plantilla.ods'));
+assert.equal(conEnvio.datos.tienda.envioEmail, '');
+const tiendaSheet = () => conEnvio.registro.ods.sheet('Tienda').readRows(1, 2, 2, 80).map(r => r.map(v => (v === null ? null : String(v))));
+const antes = tiendaSheet();
+await guardar(conEnvio.registro, conEnvio.datos);
+assert.deepEqual(tiendaSheet(), antes);
+conEnvio.datos.tienda.envioEmail = 'gestoria@ejemplo.es';
+writeFileSync(out, await guardar(conEnvio.registro, conEnvio.datos));
+const releido = await abrir(readFileSync(out));
+assert.equal(releido.datos.tienda.envioEmail, 'gestoria@ejemplo.es');
+assert.deepEqual(releido.datos.tienda, { ...conEnvio.datos.tienda });
+const filasTienda = releido.registro.ods.sheet('Tienda').readRows(1, 2, 2, 80).map(r => r.map(v => (v === null ? null : String(v))));
+assert.deepEqual(filasTienda.slice(0, 34), antes.slice(0, 34));
+assert.deepEqual(filasTienda[36], ['EMAIL PARA ENVIAR FACTURAS', 'gestoria@ejemplo.es']);
+// se puede volver a vaciar, y la fila queda
+releido.datos.tienda.envioEmail = '';
+writeFileSync(out, await guardar(releido.registro, releido.datos));
+assert.equal((await abrir(readFileSync(out))).datos.tienda.envioEmail, '');
 console.log(`ok · ${Math.round(performance.now() - t0)} ms`);
