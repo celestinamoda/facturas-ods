@@ -11,7 +11,7 @@ import { Productos } from './Productos.tsx';
 import { TiendaForm } from './TiendaForm.tsx';
 import { Descuentos } from './Descuentos.tsx';
 import { ModalCorreo } from './ModalCorreo.tsx';
-import { fecha } from '../lib/format.ts';
+import { ahoraLocal, fecha } from '../lib/format.ts';
 import { btn, error as errorCls, iconBase, muted } from './ui.ts';
 
 type Tab = 'venta' | 'ventas' | 'clientes' | 'productos' | 'descuentos' | 'tienda';
@@ -29,8 +29,6 @@ const ACCIONES = ['Abrir otro archivo', 'Descargar una copia', 'Copia de segurid
 // a partir de cuántos días sin copia de seguridad se avisa
 const DIAS_AVISO_COPIA = 60;
 const ODS_MIME = 'application/vnd.oasis.opendocument.spreadsheet';
-/** fecha y hora local en ISO, sin zona: 2026-10-09T19:55 */
-const ahoraLocal = (): string => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 const diasDesde = (iso: string): number => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 
 interface Copia {
@@ -192,6 +190,12 @@ export default function App() {
     }
   }
 
+  function facturasEnviadas(nums: string[], para: string) {
+    const cuando = ahoraLocal();
+    cambiar(d => ({ ...d, ventas: d.ventas.map(v => (nums.includes(v.num) ? { ...v, enviada: cuando, enviadaA: para } : v)) }));
+    avisar(`${nums.length > 1 ? `${nums.length} facturas marcadas como enviadas` : `Factura ${nums[0]} marcada como enviada`}. Recuerda guardar el archivo.`);
+  }
+
   function copiaEnviada(cuando: string) {
     cambiar(d => ({ ...d, tienda: { ...d.tienda, copia: cuando } }));
     avisar('Copia de seguridad enviada. Guarda el archivo para que recuerde la fecha.');
@@ -351,7 +355,7 @@ export default function App() {
 
       <main class="mx-auto max-w-295 px-5 pt-6 pb-20 movil:px-3 movil:pt-3.5 movil:pb-24 print:hidden">
         {tab === 'venta' && <NuevaVenta key={formKey} datos={datos} onPreview={r => abrirFactura(r, false)} onRegistrar={registrar} />}
-        {tab === 'ventas' && <Ventas datos={datos} onVer={verVenta} onEliminar={eliminarVenta} />}
+        {tab === 'ventas' && <Ventas datos={datos} onVer={verVenta} onEliminar={eliminarVenta} onEnviadas={facturasEnviadas} />}
         {tab === 'clientes' && (
           <Fichas<Cliente & Record<string, unknown>>
             titulo="Clientes" singular="cliente" ayuda="El nombre es el que se elige al hacer una venta" capacidad={300}

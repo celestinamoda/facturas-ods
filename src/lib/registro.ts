@@ -83,6 +83,9 @@ export interface Venta {
   pdf: string;
   /** gastos de envío, con el IVA incluido; van dentro de `total` */
   envio?: number;
+  /** último envío por correo desde la web (ISO local, 2026-10-09T20:15) y a qué dirección; vacíos = sin enviar */
+  enviada?: string;
+  enviadaA?: string;
 }
 
 export interface Linea {
@@ -238,12 +241,13 @@ export async function abrir(bytes: ArrayBuffer | Uint8Array): Promise<{ registro
     if (str(sub)) v.subvariedades.push({ nombre: str(sub), precio: numOrNull(precio) });
     else v.precio = numOrNull(precio);
   }
-  // la última columna (gastos de envío) la añade la web; puede no estar
-  const rv = rowsOf(ods.sheet(HOJAS.ventas), 14, CAP.ventas);
+  // las últimas columnas (gastos de envío, enviada, enviada a) las añade la web; pueden no estar
+  const rv = rowsOf(ods.sheet(HOJAS.ventas), 16, CAP.ventas);
   const ventas = rv.rows.map(
     (r): Venta => ({
       num: str(r[0]), fecha: date(r[1]), vencimiento: date(r[2]), cliente: str(r[3]), nif: str(r[4]), pago: str(r[5]),
       base: num(r[6]), ivaPct: num(r[7]), iva: num(r[8]), irpfPct: num(r[9]), irpf: num(r[10]), total: num(r[11]), pdf: str(r[12]), envio: num(r[13]),
+      enviada: date(r[14]), enviadaA: str(r[15]),
     }));
   // las dos últimas columnas (descuento y precio sin descuento) las añade la web; pueden no estar
   const rl = rowsOf(ods.sheet(HOJAS.detalle), 9, CAP.lineas);
@@ -329,11 +333,16 @@ export async function guardar(registro: Registro, datos: Datos): Promise<Uint8Ar
   }
   const veSheet = ods.sheet(HOJAS.ventas);
   writeTable(veSheet, datos.ventas.map(v =>
-    [v.num, d(v.fecha), d(v.vencimiento), v.cliente, v.nif, v.pago, v.base, v.ivaPct, v.iva, v.irpfPct, v.irpf, v.total, v.pdf, v.envio || null]),
-  14, counts.ventas, CAP.ventas);
+    [v.num, d(v.fecha), d(v.vencimiento), v.cliente, v.nif, v.pago, v.base, v.ivaPct, v.iva, v.irpfPct, v.irpf, v.total, v.pdf, v.envio || null, v.enviada || null, v.enviadaA || null]),
+  16, counts.ventas, CAP.ventas);
   if (datos.ventas.some(v => v.envio) && veSheet.read(5, 15) === null) {
     veSheet.write(5, 15, 'GASTOS DE ENVÍO');
     veSheet.setStyle(5, 15, veSheet.styleOf(5, 14));
+  }
+  if (datos.ventas.some(v => v.enviada) && veSheet.read(5, 16) === null) {
+    veSheet.writeRows(5, 16, [['ENVIADA', 'ENVIADA A']]);
+    veSheet.setStyle(5, 16, veSheet.styleOf(5, 14));
+    veSheet.setStyle(5, 17, veSheet.styleOf(5, 14));
   }
   const dSheet = ods.sheet(HOJAS.detalle);
   writeTable(dSheet, datos.lineas.map(l =>

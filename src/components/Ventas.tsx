@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'preact/hooks';
 import type { Datos, Venta } from '../lib/registro.ts';
 import { round2 } from '../lib/registro.ts';
-import { eur, fecha, norm } from '../lib/format.ts';
+import { eur, fecha, fechaHora, norm } from '../lib/format.ts';
 import { Selector } from './Selector.tsx';
 import { EnviarFacturas } from './EnviarFacturas.tsx';
 import { btn, empty, etiqueta, filaMovil, filtro, filtros, h2, icon, panel, panelHead, table, tableWrap, td, th, thR } from './ui.ts';
@@ -14,15 +14,18 @@ const nombreMes = (m: string): string => {
   const n = new Date(`${m}-01T12:00`).toLocaleDateString('es-ES', { month: 'long' });
   return `${n[0].toUpperCase()}${n.slice(1)} ${m.slice(0, 4)}`;
 };
+// pastilla verde de factura enviada: «✓ Enviada fecha hora – correo»; si no cabe, el correo baja de línea
+const pastillaEnviada = 'inline-flex flex-wrap gap-x-1 rounded-xl bg-ok-soft px-2.5 py-1 text-ok';
 const check = 'size-4 shrink-0 cursor-pointer accent-ink movil:size-5';
 
 interface Props {
   datos: Datos;
   onVer(v: Venta): void;
   onEliminar(v: Venta): void;
+  onEnviadas(nums: string[], para: string): void;
 }
 
-export function Ventas({ datos, onVer, onEliminar }: Props) {
+export function Ventas({ datos, onVer, onEliminar, onEnviadas }: Props) {
   const [q, setQ] = useState('');
   const [mes, setMes] = useState('');
   // facturas marcadas para enviar por correo, por número
@@ -99,7 +102,7 @@ export function Ventas({ datos, onVer, onEliminar }: Props) {
                       onChange={e => marcar(lista.map(v => v.num), e.currentTarget.checked)} />Nº
                   </label>
                 </th><th class={th}>Fecha</th><th class={th}>Cliente</th><th class={th}>Pago</th>
-                <th class={thR}>Base</th><th class={`${thR} tablet:hidden`}>IVA</th><th class={thR}>Total</th><th class={th} />
+                <th class={thR}>Base</th><th class={`${thR} tablet:hidden`}>IVA</th><th class={thR}>Total</th><th class={th}>Enviada</th><th class={th} />
               </tr>
             </thead>
             <tbody>
@@ -117,6 +120,15 @@ export function Ventas({ datos, onVer, onEliminar }: Props) {
                   <td class={`${td} text-right tabular-nums movil:hidden`}>{eur(v.base)}</td>
                   <td class={`${td} text-right tabular-nums tablet:hidden movil:hidden`}>{eur(v.iva)}</td>
                   <td class={`${td} text-right tabular-nums movil:order-2`}><b>{eur(v.total)}</b></td>
+                  {/* último envío por correo desde la web */}
+                  <td class={`${td} text-xs movil:order-7 movil:col-span-2`} title={v.enviadaA ? `Enviada a ${v.enviadaA}` : undefined}>
+                    {v.enviada ? (
+                      <span class={pastillaEnviada}>
+                        <span class="font-semibold whitespace-nowrap">✓ Enviada {fechaHora(v.enviada)}</span>
+                        <span class="break-all">– {v.enviadaA || 'sin destinatario'}</span>
+                      </span>
+                    ) : <span class="text-muted movil:hidden">—</span>}
+                  </td>
                   <td class={`${td} text-right whitespace-nowrap movil:order-5 movil:row-span-2 movil:self-center`}>
                     <button class={btn('ghost', 'small')} onClick={() => onVer(v)}>Factura</button>
                     <button class={icon} title="Eliminar venta" onClick={() => onEliminar(v)}>×</button>
@@ -127,7 +139,7 @@ export function Ventas({ datos, onVer, onEliminar }: Props) {
           </table>
         </div>
       )}
-      {enviar && <EnviarFacturas datos={datos} ventas={elegidas} onCerrar={() => setEnviar(false)} />}
+      {enviar && <EnviarFacturas datos={datos} ventas={elegidas} onEnviadas={onEnviadas} onCerrar={() => setEnviar(false)} />}
     </section>
   );
 }

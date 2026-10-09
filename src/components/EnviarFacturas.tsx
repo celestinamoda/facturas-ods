@@ -8,12 +8,14 @@ import { ModalCorreo } from './ModalCorreo.tsx';
 interface Props {
   datos: Datos;
   ventas: Venta[];
+  /** se apunta en cada factura cuándo y a quién se envió */
+  onEnviadas(nums: string[], para: string): void;
   onCerrar(): void;
 }
 
 const lista = (xs: string[]): string => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`);
 
-export function EnviarFacturas({ datos, ventas, onCerrar }: Props) {
+export function EnviarFacturas({ datos, ventas, onEnviadas, onCerrar }: Props) {
   const nums = ventas.map(v => v.num);
   const emails = [...new Set(ventas.map(v => buscarCliente(datos, v.cliente)?.email.trim()).filter((e): e is string => !!e))];
   const sinEmail = [...new Set(ventas.filter(v => !buscarCliente(datos, v.cliente)?.email.trim()).map(v => v.cliente))];
@@ -49,6 +51,7 @@ export function EnviarFacturas({ datos, ventas, onCerrar }: Props) {
       notaPara={fijo ? 'El de la pestaña Tienda.' : sinEmail.length > 0 && `Sin email en su ficha: ${sinEmail.join(', ')}`}
       asunto={`${nums.length > 1 ? 'Facturas' : 'Factura'} ${lista(nums)} · ${tienda}`}
       mensaje={`Hola:\n\nTe envío ${nums.length > 1 ? `las facturas ${lista(nums)}` : `la factura ${nums[0]}`} en PDF.\n\nUn saludo,\n${tienda}`}
+      onEnviado={para => onEnviadas(nums, para)}
       onCerrar={onCerrar}
     />
   );

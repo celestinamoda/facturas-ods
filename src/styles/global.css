@@ -24,6 +24,9 @@
   --color-bg: #f4f4f2;
   --color-field: #f2f2f0;
   --color-danger: #b00020;
+  /* verde de «hecho» (factura enviada): texto y fondo de la pastilla */
+  --color-ok: #1e6b3a;
+  --color-ok-soft: #dcf2e3;
 }
 
 /* Puntos de corte: `tablet:` hasta 900 px y `movil:` hasta 600 px. En este orden, para que `movil:` gane.

@@ -184,6 +184,24 @@ releido.datos.tienda.envioEmail = '';
 writeFileSync(out, await guardar(releido.registro, releido.datos));
 assert.equal((await abrir(readFileSync(out))).datos.tienda.envioEmail, '');
 
+// facturas enviadas por correo: columnas P y Q de Ventas, con su rótulo al marcar la primera
+const conVentas = await abrir(readFileSync('public/plantilla.ods'));
+const vSheetRot = () => conVentas.registro.ods.sheet('Ventas').readRows(5, 15, 3, 1)[0];
+conVentas.datos.ventas.push(
+  { num: 'E1', fecha: '2026-10-09', vencimiento: '', cliente: 'A', nif: '', pago: '', base: 10, ivaPct: 0.21, iva: 2.1, irpfPct: 0, irpf: 0, total: 12.1, pdf: '' },
+  { num: 'E2', fecha: '2026-10-09', vencimiento: '', cliente: 'B', nif: '', pago: '', base: 10, ivaPct: 0.21, iva: 2.1, irpfPct: 0, irpf: 0, total: 12.1, pdf: '' },
+);
+await guardar(conVentas.registro, conVentas.datos);
+assert.deepEqual(vSheetRot(), [null, null, null]);
+conVentas.datos.ventas[0] = { ...conVentas.datos.ventas[0], enviada: '2026-10-09T20:15', enviadaA: 'a@b.es, c@d.es' };
+const bytesEnviadas = await guardar(conVentas.registro, conVentas.datos);
+assert.deepEqual(vSheetRot(), [null, 'ENVIADA', 'ENVIADA A']);
+const enviadas = (await abrir(bytesEnviadas)).datos.ventas;
+assert.equal(enviadas[0].enviada, '2026-10-09T20:15');
+assert.equal(enviadas[0].enviadaA, 'a@b.es, c@d.es');
+assert.equal(enviadas[1].enviada, '');
+assert.equal(enviadas[1].total, 12.1);
+
 // fecha de la última copia de seguridad: otra fila de la web, en su bloque debajo de la del email
 const conCopia = await abrir(readFileSync(out));
 assert.equal(conCopia.datos.tienda.copia, '');

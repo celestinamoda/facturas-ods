@@ -195,6 +195,12 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
     `navigator.canShare` lo admite. Un `*|FNAME|*` en «Para» lo pone Outlook (contacto de un boletín), no la web.
   - «Descargar PDF y abrir el correo»: descarga los PDF y abre mailto con destinatario (emails de las
     fichas de cliente o el de Tienda), asunto y mensaje; los PDF se adjuntan a mano.
+  - **Factura enviada**: al pulsar compartir o abrir el correo, cada factura enviada guarda fecha y hora
+    (`Venta.enviada`, ISO local) y lo que había en «Para» (`Venta.enviadaA`; con «Compartir» puede no ser
+    el destinatario real, que se elige en la app de correo). Solo el último envío, sin historial. Deja el
+    archivo con cambios (hay que «Guardar»). En el `.ods`: columnas P «ENVIADA» y Q «ENVIADA A» de Ventas,
+    que solo escribe la web; su rótulo se pone al guardar la primera. En Ventas, columna «Enviada» con una
+    pastilla verde (fecha, hora y correo dentro), colores `ok`/`ok-soft` de `@theme`: el único verde del tema.
   - Selección: casillas, la de cabecera (las visibles) y el desplegable «Seleccionar por mes o año»,
     que suma todas las de ese mes o año sin mirar los filtros. La selección se pierde al cambiar de pestaña.
   - **Email de envío** en Tienda (`Tienda.envioEmail`, «Envío de facturas»): si está, va en «Para» en vez

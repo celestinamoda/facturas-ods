@@ -21,8 +21,8 @@ interface Props {
   notaPara?: ComponentChildren;
   asunto: string;
   mensaje: string;
-  /** al compartir o abrir el correo (no se puede saber si de verdad se llegó a enviar) */
-  onEnviado?(): void;
+  /** al compartir o abrir el correo (no se puede saber si de verdad se llegó a enviar), con lo que había en «Para» */
+  onEnviado?(para: string): void;
   onCerrar(): void;
 }
 
@@ -53,7 +53,7 @@ export function ModalCorreo({ titulo, archivos, total, adjuntos, fallo, notaPara
       // Sin esperar: `share` tiene que llamarse en el mismo clic, y la espera puede gastar el permiso.
       if (para.trim()) navigator.clipboard?.writeText(para.trim()).catch(() => {});
       await navigator.share({ files: archivos, title: asunto, text: mensaje });
-      onEnviado?.();
+      onEnviado?.(para.trim());
       onCerrar();
     } catch (e) {
       const nombre = (e as Error).name;
@@ -73,7 +73,7 @@ export function ModalCorreo({ titulo, archivos, total, adjuntos, fallo, notaPara
     // la @ sin codificar: algunos programas de correo enseñan «%40» tal cual
     const a = para.split(/[,;\s]+/).filter(Boolean).map(e => encodeURIComponent(e).replaceAll('%40', '@'));
     location.href = `mailto:${a.join(',')}?${q}`;
-    onEnviado?.();
+    onEnviado?.(para.trim());
   }
 
   const aviso = fallo || error;

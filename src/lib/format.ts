@@ -13,6 +13,12 @@ export function fecha(iso: string): string {
 }
 
 /** Acepta "1.234,56", "1234.56" o "12,5". Devuelve null si no es un número. */
+/** 2026-10-09T20:15 → 09/10/2026 20:15 */
+export const fechaHora = (iso: string): string => `${fecha(iso)}${iso.length > 10 ? ` ${iso.slice(11, 16)}` : ''}`;
+
+/** fecha y hora local en ISO, sin zona: 2026-10-09T19:55 */
+export const ahoraLocal = (): string => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
 export function parseNum(s: string): number | null {
   const t = s.trim().replace(/\s|€|%/g, '');
   if (!t) return null;
