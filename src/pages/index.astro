@@ -8,7 +8,9 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 <html lang="es" class="scheme-light">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {/* viewport-fit=cover: sin esto iOS no da las zonas seguras (env(safe-area-inset-*)) y la barrita de
+        inicio tapa el menú de abajo; a cambio, cada borde de la pantalla se encarga de su zona segura */}
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex" />
     <title>Celestina · Registro de ventas</title>
     <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
@@ -22,7 +24,7 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
       </script>
     )}
   </head>
-  <body class="bg-bg font-sans text-sm leading-[1.45] text-ink antialiased print:bg-white">
+  <body class="bg-bg pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] font-sans text-sm leading-[1.45] text-ink antialiased print:bg-white">
     <App client:only="preact" />
     <noscript>Esta página necesita JavaScript.</noscript>
   </body>

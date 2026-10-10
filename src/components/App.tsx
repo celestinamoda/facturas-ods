@@ -24,6 +24,16 @@ const TABS: [Tab, string, string, string][] = [
   ['descuentos', 'Descuentos', 'Dtos.', 'M19 5 5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17.5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z'],
   ['tienda', 'Tienda', 'Tienda', 'M4 10v10h16V10M3 10l2-6h14l2 6M3 10h18M10 20v-6h4v6'],
 ];
+// Pestañas: píldoras en la barra superior; en tablet, en una fila propia; en móvil, barra fija abajo
+const NAV = 'flex gap-0.5 rounded-full bg-ink/8 p-0.75 tablet:order-3 tablet:col-span-full tablet:max-w-full tablet:justify-self-start tablet:overflow-x-auto '
+  + 'movil:fixed movil:inset-x-0 movil:bottom-0 movil:grid movil:max-w-none movil:grid-cols-6 movil:justify-self-stretch movil:gap-0 movil:overflow-visible '
+  + 'movil:rounded-none movil:border-t movil:border-ink/8 movil:bg-paper/85 movil:px-1 movil:pt-1.5 movil:pb-[max(6px,env(safe-area-inset-bottom))] '
+  + 'movil:shadow-[0_-10px_30px_-18px_rgba(0,0,0,.35)] movil:backdrop-blur-xl movil:backdrop-saturate-150';
+const NAV_TAB = 'cursor-pointer appearance-none rounded-full border-0 px-3.5 py-1.75 text-[13px] font-semibold whitespace-nowrap [-webkit-tap-highlight-color:transparent] '
+  + 'group movil:flex movil:min-w-0 movil:flex-col movil:items-center movil:gap-1 movil:rounded-none movil:bg-transparent movil:px-0 movil:py-1 movil:text-[10.5px] movil:font-medium';
+// en móvil el icono va en una pastilla, de color solo en la pestaña activa
+const NAV_ICONO = 'hidden h-7.5 w-12 max-w-full place-items-center rounded-full transition-[background-color,transform] duration-200 movil:grid movil:group-active:scale-90';
+
 // acciones de archivo del menú «⋯» de la barra superior
 const ACCIONES = ['Abrir otro archivo', 'Descargar una copia', 'Copia de seguridad por correo', 'Cerrar el archivo'];
 // a partir de cuántos días sin copia de seguridad se avisa
@@ -297,17 +307,23 @@ export default function App() {
   const emailTienda = datos.tienda.email.trim().startsWith('[') ? '' : datos.tienda.email.trim();
   return (
     <div>
-      <header class="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center gap-4 bg-primary px-5 py-2.5 text-ink tablet:grid-cols-[1fr_auto] movil:gap-2 movil:px-3 print:hidden">
+      <header class="sticky top-0 z-10 grid grid-cols-[1fr_auto_1fr] items-center gap-4 bg-primary px-5 pt-[calc(10px+env(safe-area-inset-top))] pb-2.5 text-ink tablet:grid-cols-[1fr_auto] movil:gap-2 movil:px-3 print:hidden">
         <span class="min-w-0 truncate font-celestina text-[32px] leading-none">{datos.tienda.nombre || 'Celestina'}</span>
-        {/* tablet: fila propia bajo la barra; móvil: barra fija abajo con iconos */}
-        <nav class="flex gap-0.5 rounded-full bg-ink/8 p-0.75 tablet:order-3 tablet:col-span-full tablet:max-w-full tablet:justify-self-start tablet:overflow-x-auto movil:fixed movil:inset-x-0 movil:bottom-0 movil:grid movil:max-w-none movil:justify-self-stretch movil:overflow-visible movil:grid-cols-6 movil:gap-0 movil:rounded-none movil:border-t movil:border-line movil:bg-paper movil:p-0 movil:pb-[env(safe-area-inset-bottom)]" role="tablist">
-          {TABS.map(([id, label, corto, icono]) => (
-            <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-              class={`cursor-pointer appearance-none rounded-full border-0 px-3.5 py-1.75 text-[13px] font-semibold whitespace-nowrap movil:flex movil:flex-col movil:items-center movil:gap-0.5 movil:rounded-none movil:px-0 movil:pt-2 movil:pb-1.5 movil:text-[10px] ${tab === id ? 'bg-white text-ink movil:bg-primary/45' : 'bg-transparent text-ink-2 hover:text-ink'}`}>
-              <svg class="hidden size-5.5 movil:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icono} /></svg>
-              <span class="movil:hidden">{label}</span><span class="hidden movil:inline">{corto}</span>
-            </button>
-          ))}
+        {/* tablet: fila propia bajo la barra; móvil: barra fija abajo, translúcida como las de iOS, con la
+            pestaña activa en una pastilla y por encima de la barrita de inicio del iPhone (zona segura) */}
+        <nav class={NAV} role="tablist">
+          {TABS.map(([id, label, corto, icono]) => {
+            const activa = tab === id;
+            return (
+              <button key={id} role="tab" aria-selected={activa} onClick={() => setTab(id)}
+                class={`${NAV_TAB} ${activa ? 'bg-white text-ink movil:font-semibold' : 'bg-transparent text-ink-2 hover:text-ink movil:text-muted'}`}>
+                <span class={`${NAV_ICONO} ${activa ? 'movil:bg-primary movil:text-ink' : ''}`}>
+                  <svg class="size-5.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width={activa ? 2 : 1.7} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icono} /></svg>
+                </span>
+                <span class="movil:hidden">{label}</span><span class="hidden movil:inline">{corto}</span>
+              </button>
+            );
+          })}
         </nav>
         <div class="flex justify-end gap-2">
           <button class={btn('white')} disabled={busy || !dirty} onClick={() => guardarArchivo(false)}>
@@ -353,7 +369,7 @@ export default function App() {
         </div>
       )}
 
-      <main class="mx-auto max-w-295 px-5 pt-6 pb-20 movil:px-3 movil:pt-3.5 movil:pb-24 print:hidden">
+      <main class="mx-auto max-w-295 px-5 pt-6 pb-20 movil:px-3 movil:pt-3.5 movil:pb-[calc(96px+env(safe-area-inset-bottom))] print:hidden">
         {tab === 'venta' && <NuevaVenta key={formKey} datos={datos} onPreview={r => abrirFactura(r, false)} onRegistrar={registrar} />}
         {tab === 'ventas' && <Ventas datos={datos} onVer={verVenta} onEliminar={eliminarVenta} onEnviadas={facturasEnviadas} />}
         {tab === 'clientes' && (
@@ -380,8 +396,8 @@ export default function App() {
         <div class="fixed inset-0 z-50 grid place-items-center bg-ink/55 p-5 movil:p-0 print:static print:block print:bg-transparent print:p-0"
           role="dialog" aria-modal="true" onClick={e => { if (e.target === e.currentTarget) setModal(null); }}>
           {/* en móvil ocupa toda la pantalla */}
-          <div class="flex max-h-[calc(100dvh-40px)] w-[min(860px,100%)] flex-col overflow-hidden rounded-[14px] bg-bg movil:h-dvh movil:max-h-none movil:rounded-none print:block print:h-auto print:max-h-none print:w-auto print:overflow-visible print:rounded-none print:bg-white">
-            <div class="flex flex-wrap items-center justify-between gap-3 bg-primary py-2.5 pr-3.5 pl-5 text-ink movil:px-3 print:hidden">
+          <div class="flex max-h-[calc(100dvh-40px)] w-[min(860px,100%)] flex-col overflow-hidden rounded-[14px] bg-bg movil:h-dvh movil:max-h-none movil:rounded-none movil:pb-[env(safe-area-inset-bottom)] print:block print:h-auto print:max-h-none print:w-auto print:overflow-visible print:rounded-none print:bg-white">
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-primary py-2.5 pr-3.5 pl-5 text-ink movil:px-3 movil:pt-[calc(10px+env(safe-area-inset-top))] print:hidden">
               <span class="font-bold">Factura {modal.venta.num}</span>
               <div class="flex flex-wrap gap-2">
                 {modal.registrar && (
@@ -414,7 +430,7 @@ Para recuperarlo, descarga el archivo adjunto y ábrelo en la web o en LibreOffi
       )}
 
       {toast && (
-        <div class="fixed bottom-5.5 left-1/2 z-60 w-max max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-full bg-primary px-4.5 py-2.75 text-ink shadow-[0_10px_30px_-10px_rgba(0,0,0,.5)] movil:bottom-20 movil:rounded-2xl movil:text-center print:hidden" role="status">{toast}</div>
+        <div class="fixed bottom-5.5 left-1/2 z-60 w-max max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-full bg-primary px-4.5 py-2.75 text-ink shadow-[0_10px_30px_-10px_rgba(0,0,0,.5)] movil:bottom-[calc(80px+env(safe-area-inset-bottom))] movil:rounded-2xl movil:text-center print:hidden" role="status">{toast}</div>
       )}
     </div>
   );

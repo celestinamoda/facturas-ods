@@ -76,8 +76,15 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   - Barra superior: logo, pestañas, "Guardar" y un menú "⋯" (lista `ACCIONES` en `App.tsx`) con
     abrir otro archivo, descargar copia, copia de seguridad por correo y cerrar, a cualquier ancho. El nombre del archivo abierto
     solo se ve dentro de ese menú, por decisión del usuario: no volver a ponerlo en la barra.
-  - Pestañas: en tablet bajan a una fila propia; en móvil son una barra fija abajo con iconos y
-    texto corto (son seis: no cabe el largo).
+  - Pestañas (`NAV`, `NAV_TAB`, `NAV_ICONO` en `App.tsx`): en tablet bajan a una fila propia; en móvil
+    son una barra fija abajo, translúcida con desenfoque (estilo iOS), con iconos y texto corto (son seis:
+    no cabe el largo); la activa lleva el icono en una pastilla `primary` y el texto en negrita.
+  - **Zonas seguras del iPhone**: el viewport lleva `viewport-fit=cover` (sin él `env(safe-area-inset-*)`
+    vale 0 y la barrita de inicio tapaba el menú de abajo). Por eso cada borde se encarga de la suya:
+    barra superior y cabecera de los modales a pantalla completa (arriba), menú de abajo, `main`, aviso
+    flotante y modales (abajo), y `<body>` (lados, para el iPhone en horizontal). Si se añade algo pegado
+    a un borde en móvil, que sume su `env(safe-area-inset-*)`. Probado forzando las zonas en Chromium
+    (`Emulation.setSafeAreaInsetsOverride`); **sin probar en un iPhone real**.
   - Tablas (líneas de Nueva venta y Ventas): en móvil dejan de ser tabla (`table`, `td`, `tdInput`,
     `filaMovil` de `ui.ts`): se oculta la cabecera y cada fila es una tarjeta cuya rejilla define el
     componente en su `<tr>`.
@@ -201,6 +208,10 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
     archivo con cambios (hay que «Guardar»). En el `.ods`: columnas P «ENVIADA» y Q «ENVIADA A» de Ventas,
     que solo escribe la web; su rótulo se pone al guardar la primera. En Ventas, columna «Enviada» con una
     pastilla verde (fecha, hora y correo dentro), colores `ok`/`ok-soft` de `@theme`: el único verde del tema.
+  - **Marcar como enviada a mano** (barra de selección de Ventas): para las mandadas por otro lado. Pide
+    confirmación en un `ModalFormulario` («¿Estás seguro?», botón «Sí, marcar…»; `aceptar` cambia el texto del
+    botón), avisa de las que ya constaban como enviadas y deja poner el correo, relleno como al enviarlas
+    (`destinatario` en `EnviarFacturas.tsx`). Apunta lo mismo que un envío. No hay forma de desmarcar.
   - Selección: casillas, la de cabecera (las visibles) y el desplegable «Seleccionar por mes o año»,
     que suma todas las de ese mes o año sin mirar los filtros. La selección se pierde al cambiar de pestaña.
   - **Email de envío** en Tienda (`Tienda.envioEmail`, «Envío de facturas»): si está, va en «Para» en vez

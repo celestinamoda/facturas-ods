@@ -81,8 +81,8 @@ export function ModalCorreo({ titulo, archivos, total, adjuntos, fallo, notaPara
     <div class="fixed inset-0 z-50 grid place-items-center bg-ink/55 p-5 movil:p-0" role="dialog" aria-modal="true" aria-label={titulo}
       onKeyDown={e => { if (e.key === 'Escape') onCerrar(); }}>
       {/* en móvil ocupa toda la pantalla */}
-      <div class="flex max-h-[calc(100dvh-40px)] w-[min(560px,100%)] flex-col overflow-hidden rounded-[14px] bg-paper movil:h-dvh movil:max-h-none movil:rounded-none">
-        <div class="flex items-center justify-between gap-3 bg-primary py-2.5 pr-3.5 pl-5 text-ink movil:px-3">
+      <div class="flex max-h-[calc(100dvh-40px)] w-[min(560px,100%)] flex-col overflow-hidden rounded-[14px] bg-paper movil:h-dvh movil:max-h-none movil:rounded-none movil:pb-[env(safe-area-inset-bottom)]">
+        <div class="flex items-center justify-between gap-3 bg-primary py-2.5 pr-3.5 pl-5 text-ink movil:px-3 movil:pt-[calc(10px+env(safe-area-inset-top))]">
           <span class="min-w-0 truncate font-bold">{titulo}</span>
           <button type="button" class={btn('bar')} onClick={onCerrar}>Cerrar</button>
         </div>

@@ -1,11 +1,13 @@
 // src/components/Ventas.tsx
 import { useMemo, useState } from 'preact/hooks';
+import { ahoraLocal } from '../lib/format.ts';
 import type { Datos, Venta } from '../lib/registro.ts';
 import { round2 } from '../lib/registro.ts';
 import { eur, fecha, fechaHora, norm } from '../lib/format.ts';
 import { Selector } from './Selector.tsx';
-import { EnviarFacturas } from './EnviarFacturas.tsx';
-import { btn, empty, etiqueta, filaMovil, filtro, filtros, h2, icon, panel, panelHead, table, tableWrap, td, th, thR } from './ui.ts';
+import { EnviarFacturas, destinatario, lista as enLista } from './EnviarFacturas.tsx';
+import { ModalFormulario } from './ModalFormulario.tsx';
+import { btn, campo, empty, input, etiqueta, filaMovil, filtro, filtros, h2, icon, panel, panelHead, table, tableWrap, td, th, thR } from './ui.ts';
 
 // en móvil cada indicador es una sola línea: etiqueta a la izquierda y valor a la derecha
 const kpi = 'flex flex-col gap-0.5 rounded-[10px] border border-line px-4 py-3.5 movil:flex-row movil:items-center movil:justify-between movil:py-2.5';
@@ -31,6 +33,8 @@ export function Ventas({ datos, onVer, onEliminar, onEnviadas }: Props) {
   // facturas marcadas para enviar por correo, por número
   const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
   const [enviar, setEnviar] = useState(false);
+  // marcar a mano como enviadas (por si se mandaron por otro lado): pide confirmación
+  const [aMano, setAMano] = useState<{ para: string } | null>(null);
   const meses = useMemo(() => [...new Set(datos.ventas.map(v => v.fecha.slice(0, 7)))].sort().reverse(), [datos.ventas]);
   // para marcar de golpe: cada año seguido de sus meses, con cuántas facturas tiene cada uno
   const periodos = useMemo(() => {
@@ -84,6 +88,9 @@ export function Ventas({ datos, onVer, onEliminar, onEnviadas }: Props) {
               <span class="mr-auto text-sm font-semibold">{elegidas.length === 1 ? '1 factura seleccionada' : `${elegidas.length} facturas seleccionadas`}</span>
               {!todas && <button class={btn('ghost', 'small')} onClick={() => marcar(lista.map(v => v.num), true)}>Seleccionar las {lista.length}</button>}
               <button class={btn('ghost', 'small')} onClick={() => setMarcadas(new Set())}>Quitar selección</button>
+              <button class={btn('ghost', 'small')} onClick={() => setAMano({ para: destinatario(datos, elegidas) })}>
+                Marcar como {elegidas.length > 1 ? 'enviadas' : 'enviada'}
+              </button>
               <button class={btn('primary', 'small')} onClick={() => setEnviar(true)}>Enviar por correo</button>
             </>
           ) : <span class="text-sm text-muted">o marca las casillas de la lista para enviarlas por correo</span>}
@@ -139,6 +146,30 @@ export function Ventas({ datos, onVer, onEliminar, onEnviadas }: Props) {
           </table>
         </div>
       )}
+      {aMano && (() => {
+        const varias = elegidas.length > 1;
+        const ya = elegidas.filter(v => v.enviada);
+        return (
+          <ModalFormulario titulo="¿Estás seguro?" aceptar={`Sí, marcar ${varias ? `las ${elegidas.length}` : ''}`.trim()}
+            onAceptar={() => { onEnviadas(elegidas.map(v => v.num), aMano.para.trim()); setAMano(null); }} onCancelar={() => setAMano(null)}>
+            <p class="mb-3.5">
+              {varias ? 'Las facturas' : 'La factura'} <b>{enLista(elegidas.map(v => v.num))}</b> {varias ? 'quedarán marcadas' : 'quedará marcada'} como
+              {varias ? ' enviadas' : ' enviada'} con la fecha y hora de ahora ({fechaHora(ahoraLocal())}), sin mandar ningún correo.
+            </p>
+            {ya.length > 0 && (
+              <p class="mb-3.5 rounded-lg bg-field px-3 py-2 text-[13px]">
+                {ya.length > 1 ? `${enLista(ya.map(v => v.num))} ya constan como enviadas` : `${ya[0].num} ya consta como enviada`}: se
+                sustituirá la fecha y el correo que tiene{ya.length > 1 ? 'n' : ''}.
+              </p>
+            )}
+            <label class={campo}>
+              <span class={etiqueta}>Enviada a (opcional)</span>
+              <input class={input} type="email" multiple value={aMano.para} placeholder="correo@dominio.com"
+                onInput={e => setAMano({ para: e.currentTarget.value })} />
+            </label>
+          </ModalFormulario>
+        );
+      })()}
       {enviar && <EnviarFacturas datos={datos} ventas={elegidas} onEnviadas={onEnviadas} onCerrar={() => setEnviar(false)} />}
     </section>
   );

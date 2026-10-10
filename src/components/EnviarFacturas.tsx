@@ -13,14 +13,18 @@ interface Props {
   onCerrar(): void;
 }
 
-const lista = (xs: string[]): string => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`);
+/** A quién van las facturas: el email de la pestaña Tienda; si no hay, el de cada cliente. */
+export function destinatario(datos: Datos, ventas: Venta[]): string {
+  const fijo = datos.tienda.envioEmail.trim();
+  return fijo || [...new Set(ventas.map(v => buscarCliente(datos, v.cliente)?.email.trim()).filter(Boolean))].join(', ');
+}
+
+export const lista = (xs: string[]): string => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`);
 
 export function EnviarFacturas({ datos, ventas, onEnviadas, onCerrar }: Props) {
   const nums = ventas.map(v => v.num);
-  const emails = [...new Set(ventas.map(v => buscarCliente(datos, v.cliente)?.email.trim()).filter((e): e is string => !!e))];
   const sinEmail = [...new Set(ventas.filter(v => !buscarCliente(datos, v.cliente)?.email.trim()).map(v => v.cliente))];
   const tienda = datos.tienda.nombre || 'Celestina';
-  // el email de la pestaña Tienda manda; si no hay, el de cada cliente
   const fijo = datos.tienda.envioEmail.trim();
 
   const [pdfs, setPdfs] = useState<File[]>([]);
@@ -47,7 +51,7 @@ export function EnviarFacturas({ datos, ventas, onEnviadas, onCerrar }: Props) {
     <ModalCorreo
       titulo={`Enviar ${nums.length > 1 ? `${nums.length} facturas` : `factura ${nums[0]}`}`}
       archivos={pdfs} total={ventas.length} adjuntos="los PDF" fallo={fallo}
-      para={fijo || emails.join(', ')}
+      para={destinatario(datos, ventas)}
       notaPara={fijo ? 'El de la pestaña Tienda.' : sinEmail.length > 0 && `Sin email en su ficha: ${sinEmail.join(', ')}`}
       asunto={`${nums.length > 1 ? 'Facturas' : 'Factura'} ${lista(nums)} · ${tienda}`}
       mensaje={`Hola:\n\nTe envío ${nums.length > 1 ? `las facturas ${lista(nums)}` : `la factura ${nums[0]}`} en PDF.\n\nUn saludo,\n${tienda}`}
