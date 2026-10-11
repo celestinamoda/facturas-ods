@@ -31,6 +31,9 @@ jobs:
           SITE_URL: https://${{ github.repository_owner }}.github.io
           # repositorio <usuario>.github.io → raíz; cualquier otro → /<repo>
           BASE_PATH: ${{ endsWith(github.event.repository.name, '.github.io') && '/' || format('/{0}', github.event.repository.name) }}
+          # Google Drive: identificador de cliente OAuth (no es secreto). Variable del repositorio en
+          # Settings › Secrets and variables › Actions › Variables; si no está, la web no enseña nada de Drive.
+          PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

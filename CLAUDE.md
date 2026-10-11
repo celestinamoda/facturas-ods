@@ -6,8 +6,9 @@ que altere el estado, las convenciones o la lista de pendientes (secciones "Esta
 ## Qué es
 
 Web estática para hacer facturas de la tienda Celestina usando como base de datos el `.ods` del
-registro de ventas. Todo ocurre en el navegador: el archivo se abre, se edita y se guarda en local,
-no hay servidor ni backend. El `.ods` debe seguir funcionando en LibreOffice con sus macros.
+registro de ventas. Todo ocurre en el navegador: el archivo se abre, se edita y se guarda en local
+o, si se configura, en el Google Drive del usuario (llamando a Google desde el navegador).
+**No hay servidor ni backend, y el usuario pidió que siga sin haberlo.** El `.ods` debe seguir funcionando en LibreOffice con sus macros.
 
 Pila: Astro 7 (una sola página) + Preact + Tailwind 4 + JSZip + html2canvas-pro (PDF). Node 22. Es una PWA instalable.
 
@@ -47,6 +48,9 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
 | `src/lib/ods.ts` | Lee/escribe celdas de `content.xml` sin tocar estilos, fórmulas ni macros |
 | `src/lib/registro.ts` | Mapea hojas ↔ datos y cálculos (totales, número de factura, vencimiento) |
 | `src/lib/archivo.ts` | Abrir/guardar con File System Access API, con descarga como alternativa |
+| `src/lib/drive.ts` | Google Drive sin servidor: inicio de sesión (Google Identity Services) y API de Drive con `fetch` |
+| `src/components/PaginaDrive.tsx` | Página «Google Drive» (menú «⋯ › Carpeta y copias de Drive»): carpeta, registros, copias y estado del guardado automático |
+| `src/components/ElegirDrive.tsx` | Modal para abrir un registro (o una copia de seguridad) de Google Drive |
 | `src/lib/recuerdo.ts` | Recuerda en IndexedDB el último archivo abierto para reabrirlo al volver |
 | `src/lib/pdf.ts` | Convierte la factura en un archivo PDF A4 (imagen JPEG en un PDF escrito a mano) |
 | `src/lib/format.ts` | Formato de euros, fechas, porcentajes; `norm` y `parseNum` |
@@ -73,8 +77,11 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
   en `global.css` en ese orden para que `movil:` gane. Se diseña para escritorio y se ajusta hacia
   abajo. Impresión con `print:`.
 - **Responsive**:
-  - Barra superior: logo, pestañas, "Guardar" y un menú "⋯" (lista `ACCIONES` en `App.tsx`) con
-    abrir otro archivo, descargar copia, copia de seguridad por correo y cerrar, a cualquier ancho. El nombre del archivo abierto
+  - Barra superior: logo, pestañas, "Guardar" y un menú "⋯" (`bloques` en `App.tsx`), a cualquier ancho. Arriba,
+    el nombre del archivo, dónde está y la última copia; debajo, por bloques con título (lo pidió el usuario):
+    «Archivo» (abrir otro, descargar copia .ods, copia por correo), «Google Drive» (solo si está configurado:
+    abrir un registro de Drive, subir este registro, ver en Google Drive, copia en Drive, carpeta y copias) y,
+    aparte, «Cerrar el archivo». En móvil se desplaza si no cabe. El nombre del archivo abierto
     solo se ve dentro de ese menú, por decisión del usuario: no volver a ponerlo en la barra.
   - Pestañas (`NAV`, `NAV_TAB`, `NAV_ICONO` en `App.tsx`): en tablet bajan a una fila propia; en móvil
     son una barra fija abajo, translúcida con desenfoque (estilo iOS), con iconos y texto corto (son seis:
@@ -240,6 +247,54 @@ usa ese servidor en vez de arrancar otro, y no lo mates.
     con cambios y hay que «Guardar» para que se quede. El archivo enviado ya lleva su propia fecha.
   - Aviso (`DIAS_AVISO_COPIA` = 60) si nunca se ha hecho copia o hace 60 días o más. Se puede ocultar con
     «×» hasta que se vuelva a abrir un archivo.
+- **Google Drive** (`src/lib/drive.ts`), sin servidor:
+  - Solo existe si al compilar está `PUBLIC_GOOGLE_CLIENT_ID` (identificador de cliente OAuth «Aplicación web»
+    de Google Cloud; no es secreto). En GitHub Actions sale de la variable de repositorio `GOOGLE_CLIENT_ID`;
+    en local, de `.env.local` (ignorado por git). Sin él no se ve nada de Drive ni se pide nada a Google.
+  - Configuración en Google Cloud (la hace el usuario): proyecto, activar «Google Drive API», pantalla de
+    consentimiento externa en modo de prueba con su cuenta como usuario de prueba, y credencial «ID de
+    cliente de OAuth» tipo aplicación web con orígenes JavaScript `https://celestinamoda.github.io` y
+    `http://localhost:4321` (orígenes, sin ruta). Sin URI de redirección: se usa el flujo de token.
+  - **En Drive el registro es una Hoja de cálculo de Google, no un .ods** (lo pidió el usuario; el .ods del
+    ordenador se sigue abriendo y guardando como siempre). La web solo sabe de .ods, así que: al subir, manda
+    un .ods con `mimeType` de Hoja y Google lo convierte; al abrir, lo exporta a .ods (`files/{id}/export`);
+    al guardar, sube un .ods encima (`uploadType=media`) y Google vuelve a convertirlo. Consecuencias: en la
+    Hoja no hay macros de LibreOffice; las ediciones hechas a mano en Hojas de cálculo sí se leen (si no se
+    cambian nombres de hojas ni columnas); cada guardado reimporta el libro entero (Google guarda las versiones).
+    **No se ha probado con un .ods exportado de verdad por Google**: `ods.ts` es genérico (repeticiones,
+    celdas combinadas, espacios de nombres), pero si algo falla al abrir una Hoja, empezar por ahí.
+  - Las copias de seguridad en Drive sí son .ods (para recuperarlas en LibreOffice).
+  - Permiso `drive.file`: la web solo ve lo que ella crea. Por eso un registro se sube con «⋯ › Subir este registro a Drive» y desde entonces aparece en «Abrir un registro de Drive» (y «Abrir desde Google Drive» en la bienvenida) en cualquier dispositivo; un archivo
+    subido o creado a mano en drive.google.com **no** sale (haría falta el Google Picker, no implementado).
+  - La ventana de Google solo se puede abrir dentro de un clic: `accesoDrive()` va lo primero en cada
+    manejador, antes de cualquier `await`, y la librería (`gsi/client`) se precarga al arrancar. El token
+    (1 h) se guarda en `sessionStorage` (`facturas-ods-drive-token`): al recargar se reabre solo; en una
+    pestaña nueva, la bienvenida ofrece «Continuar con … (Google Drive)».
+  - **Guardado automático** con el registro en Drive (lo pidió el usuario): cada cambio se guarda solo tras
+    `PAUSA_AUTOGUARDADO` (2,5 s; efecto en `App.tsx`, función `guardarEnDrive(manual)`). Antes compara
+    `modifiedTime` con el de cuando se abrió: si cambió (otro dispositivo, o alguien en Hojas de cálculo), el
+    automático **se para** (`auto = 'parado'`) y avisa, y «Guardar» pregunta antes de pisarlo. También se para
+    si caduca la sesión de Google (el token no se puede renovar sin un clic): «Guardar» vuelve a entrar. Si
+    falla la red, reintenta cada `PAUSA_REINTENTO` (30 s). No hay fusión de cambios.
+  - **Copia de seguridad diaria automática**: tras un guardado en Drive, si `Tienda.copia` no es de hoy, sube una
+    copia .ods y apunta la fecha (que el automático guarda enseguida). Con el registro en Drive no sale el aviso
+    de los 60 días. «⋯ › Copia de seguridad en Drive» y «Hacer una copia ahora» siguen existiendo a mano.
+  - En Drive todo va en la carpeta **«Celestina»** (registros) con la subcarpeta **«Copias de seguridad»**;
+    se crean solas. Las copias se reconocen por la carpeta o por el nombre «… (copia AAAA-MM-DD).ods».
+  - «⋯ › Ver en Google Drive» abre el archivo actual (`webViewLink`; una Hoja se abre en Hojas de cálculo).
+    La página «Google Drive» (`tab = 'drive'`, sin pestaña propia) lista la carpeta con «Abrir aquí» y «Abrir
+    en Drive», y enlaza la carpeta.
+  - **Si se borra la carpeta o el registro** (el usuario lo probó): borrado o en la papelera cuenta igual
+    (`NoEstaEnDrive`; ojo, Drive deja guardar en un archivo de la papelera, por eso `datosDrive` mira `trashed`).
+    Al abrir desde Drive o entrar en la página, la carpeta «Celestina» se crea si falta, y si no hay registros
+    se ofrece «Crear un registro nuevo en Drive» (la plantilla, como Hoja) o «Subir el registro abierto»; no se
+    crea un registro sin preguntar. Si al guardar ya no está, el registro pasa a local (los datos siguen en la
+    web y se recuerdan como copia) y se ofrece volver a subirlo. «Continuar con…» de uno borrado lo olvida.
+  - El service worker no toca las peticiones a otros orígenes, así que Google no pasa por la caché.
+  - Probado con Google simulado en Playwright (librería y API interceptadas, Drive en memoria con carpetas):
+    subir, guardado automático, copia diaria (una sola al día), choque (se para y no pisa), página de Drive,
+    abrir en Drive, abrir en «iPhone», recargar y «Continuar con…». **Sin probar con Google de
+    verdad**: falta el identificador de cliente del usuario.
 - **La factura no muestra vencimiento ni datos de pago** (IBAN, titular, concepto): el usuario pidió
   quitarlos. Siguen existiendo en el `.ods` y en la pestaña Tienda (días de vencimiento, IBAN,
   titular) y `Venta.vencimiento` se sigue calculando y guardando; solo no se pintan. El bloque
@@ -317,6 +372,9 @@ Funciona: arranca, compila, pasa `check` y `test`. Hecho en esta fecha:
   pedir permiso (botón "Continuar con…"), que necesita un clic real y el selector de archivos.
 
 ## Pendiente / ideas
+
+- Google Drive: configurar el identificador de cliente y probarlo de verdad; Google Picker para abrir .ods
+  subidos a mano; no hay «cerrar sesión de Google» en la interfaz (`desconectarDrive` existe sin usar).
 
 - Copia de seguridad (2026-10-09): probada en navegador headless (aviso a 71 y a 10 días, sin copia,
   descarga + mailto, share simulado en móvil, y que el `.ods` descargado se abre con su fecha y sus ventas).

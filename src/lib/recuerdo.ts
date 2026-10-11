@@ -9,6 +9,8 @@ export interface Recuerdo {
   handle: FileHandle | null;
   /** Sin acceso al disco: copia del archivo tal como se abrió o se guardó por última vez. */
   bytes: ArrayBuffer | null;
+  /** En Google Drive: se vuelve a bajar de allí (hace falta entrar en Google, así que con un clic). */
+  drive?: string | null;
   fecha: number;
 }
 
